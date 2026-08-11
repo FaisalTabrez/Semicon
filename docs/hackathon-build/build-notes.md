@@ -168,3 +168,12 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - The train-only degradation fit measured Gaussian-noise standard deviation range `[0.032383, 0.080666]`, speckle standard deviation `[0.045366, 0.063229]`, additive bias `[-0.000877, 0.000891]`, and no supported extra blur beyond the downsampling base (`sigma 0.0`). The zero blur result is retained rather than inventing an unfitted range.
 - Bicubic confirms the texture holdout is materially harder: validation-ID PSNR/SSIM/LPIPS is `23.796180 / 0.552271 / 0.408522`; pseudo-OOD is `20.227942 / 0.425777 / 0.495734`.
 - Split, profile, per-image metrics, and aggregate evidence are persisted under `/content/drive/MyDrive/Semicon/artifacts/ood_setup_9a6f05a`. The next controlled experiment is the real-pair+D4 NAF-SR baseline on this immutable manifest.
+
+### Checklist item 7 real-pairs+D4 baseline gate
+
+- At commit `a39cec0`, the unconditioned NAF-SR baseline was trained for 5,000 steps on the immutable texture split using only real pairs plus paired D4 geometry. The run used the same 8,974,084-parameter architecture and selected raw rather than EMA weights.
+- Locked validation-ID evidence is PSNR `29.228289 dB`, SSIM `0.776491`, and LPIPS-Alex `0.270883`; locked pseudo-OOD evidence is PSNR `25.244152 dB`, SSIM `0.664552`, and LPIPS-Alex `0.352360`.
+- Relative to bicubic on the identical manifest, the model improved ID PSNR/SSIM/LPIPS by `+5.432108 dB / +0.224220 / -0.137639` and pseudo-OOD by `+5.016210 dB / +0.238776 / -0.143374`.
+- The hardest held-out group remains `texture_01` at `10.737488 dB` PSNR, followed by `texture_07` at `20.104299 dB` and `texture_10` at `20.478821 dB`; this is the principal robustness target for controlled ablations.
+- T4 training took `2004.06 s`, averaged `400.81 ms/step`, and peaked at `3.7100 GiB` allocated CUDA memory. The compact checkpoint is `34.3458 MiB`; the full resume checkpoint is `171.8550 MiB`.
+- Evidence is persisted under `/content/drive/MyDrive/Semicon/artifacts/naf_sr_ood_baseline_a39cec0`. The next isolated experiment changes only `training.synthetic_probability` from `0.0` to `0.15` using the train-only fitted degradation profile.

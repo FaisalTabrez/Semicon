@@ -34,6 +34,7 @@ from semirestore.checkpoints import (  # noqa: E402
     load_checkpoint_payload,
 )
 from semirestore.data import InputValidationError  # noqa: E402
+from semirestore.degradations import load_degradation_profile  # noqa: E402
 from semirestore.inference import resolve_device  # noqa: E402
 from semirestore.losses import CharbonnierLoss  # noqa: E402
 from semirestore.models import create_model  # noqa: E402
@@ -351,6 +352,13 @@ def _checkpoint_payload(
             "overfit_samples": overfit_samples,
             "input_policy": "raw_float32_no_clip",
             "output_policy": "unbounded_during_training",
+            "d4_augmentation": bool(training_config.get("d4_augmentation", False)),
+            "synthetic_probability": float(
+                training_config.get("synthetic_probability", 0.0)
+            ),
+            "degradation_profile_sha256": training_config.get(
+                "degradation_profile_sha256"
+            ),
         },
         "environment": environment,
     }
@@ -364,6 +372,9 @@ def _validate_resume_payload(
     manifest_sha256: str,
     max_steps: int,
     overfit_samples: int,
+    d4_augmentation: bool,
+    synthetic_probability: float,
+    degradation_profile_sha256: str | None,
 ) -> None:
     if payload.get("checkpoint_role") != "training_resume":
         raise InputValidationError("--resume requires a training_resume last.pt checkpoint")
@@ -376,6 +387,12 @@ def _validate_resume_payload(
         raise InputValidationError("Resume checkpoint manifest hash does not match")
     if checkpoint_data.get("overfit_samples") != overfit_samples:
         raise InputValidationError("Resume checkpoint overfit sample count does not match")
+    if checkpoint_data.get("d4_augmentation", False) != d4_augmentation:
+        raise InputValidationError("Resume checkpoint D4 policy does not match")
+    if float(checkpoint_data.get("synthetic_probability", 0.0)) != synthetic_probability:
+        raise InputValidationError("Resume checkpoint synthetic probability does not match")
+    if checkpoint_data.get("degradation_profile_sha256") != degradation_profile_sha256:
+        raise InputValidationError("Resume checkpoint degradation profile does not match")
     if payload.get("planned_max_steps") != max_steps:
         raise InputValidationError(
             "Resume checkpoint planned_max_steps does not match the resolved config"
@@ -429,10 +446,14 @@ def main(argv: list[str] | None = None) -> int:
         deterministic = bool(training_config.get("deterministic", False))
         ema_enabled = bool(training_config.get("ema_enabled", True))
         ema_decay = float(training_config.get("ema_decay", 0.999))
+        d4_augmentation = bool(training_config.get("d4_augmentation", False))
+        synthetic_probability = float(training_config.get("synthetic_probability", 0.0))
         if learning_rate <= 0 or weight_decay < 0 or grad_clip <= 0 or warmup_steps < 0:
             raise InputValidationError("Invalid optimizer, clipping, or warmup configuration")
         if not 0.0 <= ema_decay < 1.0:
             raise InputValidationError("training.ema_decay must be in [0, 1)")
+        if not 0.0 <= synthetic_probability <= 1.0:
+            raise InputValidationError("training.synthetic_probability must be in [0, 1]")
         if args.overfit_samples < 0:
             raise InputValidationError("--overfit-samples cannot be negative")
         target_step = max_steps if args.stop_after_step is None else args.stop_after_step
@@ -451,6 +472,19 @@ def main(argv: list[str] | None = None) -> int:
         construction_config = {
             key: value for key, value in model_config.items() if key != "name"
         }
+        degradation_profile: dict[str, object] | None = None
+        degradation_profile_path: Path | None = None
+        if synthetic_probability:
+            configured_profile = training_config.get("degradation_profile")
+            if not isinstance(configured_profile, str) or not configured_profile:
+                raise InputValidationError(
+                    "Synthetic training requires training.degradation_profile"
+                )
+            degradation_profile_path = _resolve_project_path(configured_profile)
+            degradation_profile, profile_digest = load_degradation_profile(
+                degradation_profile_path
+            )
+            training_config["degradation_profile_sha256"] = profile_digest
         resume_payload: dict[str, object] | None = None
         resume_path: Path | None = None
         if args.resume is not None:
@@ -463,6 +497,11 @@ def main(argv: list[str] | None = None) -> int:
                 manifest_sha256=manifest_digest,
                 max_steps=max_steps,
                 overfit_samples=args.overfit_samples,
+                d4_augmentation=d4_augmentation,
+                synthetic_probability=synthetic_probability,
+                degradation_profile_sha256=training_config.get(
+                    "degradation_profile_sha256"
+                ),
             )
             generator_state = resume_payload["dataloader_generator_state"]
             if not isinstance(generator_state, torch.Tensor):
@@ -485,7 +524,12 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         train_loader = DataLoader(
-            PairedNpyDataset(train_pairs),
+            PairedNpyDataset(
+                train_pairs,
+                d4_augmentation=d4_augmentation,
+                synthetic_probability=synthetic_probability,
+                degradation_profile=degradation_profile,
+            ),
             batch_size=min(batch_size, len(train_pairs)),
             shuffle=True,
             num_workers=num_workers,
@@ -560,6 +604,13 @@ def main(argv: list[str] | None = None) -> int:
                 "deterministic": deterministic,
                 "ema_enabled": ema_enabled,
                 "ema_decay": ema_decay,
+                "d4_augmentation": d4_augmentation,
+                "synthetic_probability": synthetic_probability,
+                "degradation_profile": (
+                    None
+                    if degradation_profile_path is None
+                    else str(degradation_profile_path)
+                ),
                 "resume_from": None if resume_path is None else str(resume_path),
                 "start_step": start_step,
                 "target_step": target_step,

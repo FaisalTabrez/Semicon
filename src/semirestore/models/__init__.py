@@ -26,6 +26,8 @@ def create_model(name: str, config: dict[str, object] | None = None):
             "middle_blocks",
             "decoder_blocks",
             "dropout",
+            "statistics_conditioning",
+            "conditioning_hidden",
         }
         unknown = resolved.keys() - allowed
         if unknown:

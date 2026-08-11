@@ -43,6 +43,7 @@ from semirestore.models import BicubicRestorer  # noqa: E402
 CSV_FIELDS = (
     "stem",
     "split",
+    "texture_cluster",
     "psnr_db",
     "ssim",
     "lpips_alex",
@@ -107,11 +108,11 @@ def _index_by_stem(items: Iterable[InputImage], label: str) -> dict[str, InputIm
     return indexed
 
 
-def _load_split_labels(path: Path) -> tuple[dict[str, str], str]:
+def _load_manifest_labels(path: Path) -> tuple[dict[str, dict[str, str]], str]:
     resolved = path.expanduser().resolve()
     if not resolved.is_file():
         raise InputValidationError(f"Manifest does not exist: {resolved}")
-    labels: dict[str, str] = {}
+    labels: dict[str, dict[str, str]] = {}
     with resolved.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         if not reader.fieldnames or not {"stem", "split"}.issubset(reader.fieldnames):
@@ -122,7 +123,10 @@ def _load_split_labels(path: Path) -> tuple[dict[str, str], str]:
                 raise InputValidationError("Manifest contains an empty stem")
             if stem in labels:
                 raise InputValidationError(f"Manifest contains duplicate stem '{stem}'")
-            labels[stem] = row["split"].strip() or "unassigned"
+            labels[stem] = {
+                "split": row["split"].strip() or "unassigned",
+                "texture_cluster": row.get("texture_cluster", "").strip() or "unassigned",
+            }
     digest = hashlib.sha256(resolved.read_bytes()).hexdigest()
     return labels, digest
 
@@ -223,8 +227,10 @@ def _summary_payload(
     checkpoint_sha256: str | None,
 ) -> dict[str, object]:
     split_groups: dict[str, list[dict[str, str]]] = {}
+    cluster_groups: dict[str, list[dict[str, str]]] = {}
     for row in rows:
         split_groups.setdefault(row["split"], []).append(row)
+        cluster_groups.setdefault(row["texture_cluster"], []).append(row)
 
     worst_count = max(1, math.ceil(len(rows) * 0.1))
     finite_psnr_rows = [row for row in rows if math.isfinite(float(row["psnr_db"]))]
@@ -268,6 +274,16 @@ def _summary_payload(
                 )
                 for index, (split, group) in enumerate(sorted(split_groups.items()), start=1)
             },
+            "by_texture_cluster": {
+                cluster: _aggregate(
+                    group,
+                    bootstrap_samples=bootstrap_samples,
+                    seed=bootstrap_seed + 1_000 + index * 100,
+                )
+                for index, (cluster, group) in enumerate(
+                    sorted(cluster_groups.items()), start=1
+                )
+            },
             "worst_psnr_decile": _aggregate(
                 worst_rows,
                 bootstrap_samples=bootstrap_samples,
@@ -303,11 +319,11 @@ def main(argv: list[str] | None = None) -> int:
                 f"missing targets={missing_targets[:10]}, missing inputs={missing_inputs[:10]}"
             )
 
-        split_labels: dict[str, str] = {}
+        manifest_labels: dict[str, dict[str, str]] = {}
         manifest_sha256 = None
         if args.manifest:
-            split_labels, manifest_sha256 = _load_split_labels(args.manifest)
-            unknown = inputs.keys() - split_labels.keys()
+            manifest_labels, manifest_sha256 = _load_manifest_labels(args.manifest)
+            unknown = inputs.keys() - manifest_labels.keys()
             if unknown:
                 raise InputValidationError(
                     f"Manifest is missing discovered stem(s): {', '.join(sorted(unknown)[:10])}"
@@ -317,7 +333,8 @@ def main(argv: list[str] | None = None) -> int:
         stems = [
             stem
             for stem in sorted(inputs)
-            if not selected_splits or split_labels.get(stem, "unassigned") in selected_splits
+            if not selected_splits
+            or manifest_labels.get(stem, {}).get("split", "unassigned") in selected_splits
         ]
         if not stems:
             raise InputValidationError(
@@ -392,7 +409,12 @@ def main(argv: list[str] | None = None) -> int:
                     rows.append(
                         {
                             "stem": stem,
-                            "split": split_labels.get(stem, "all_labeled"),
+                            "split": manifest_labels.get(stem, {}).get(
+                                "split", "all_labeled"
+                            ),
+                            "texture_cluster": manifest_labels.get(stem, {}).get(
+                                "texture_cluster", "unassigned"
+                            ),
                             "psnr_db": _number(metrics.psnr_db),
                             "ssim": _number(metrics.ssim),
                             "lpips_alex": _number(metrics.lpips_alex),

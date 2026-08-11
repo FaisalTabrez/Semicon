@@ -10,6 +10,7 @@ import torch
 from torch.utils.data import Dataset
 
 from .data import InputValidationError, load_npy_image
+from .degradations import apply_d4, synthesize_degraded, validate_degradation_profile
 
 
 @dataclass(frozen=True)
@@ -87,10 +88,30 @@ def read_manifest_pairs(
 
 
 class PairedNpyDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str]]):
-    def __init__(self, pairs: list[ManifestPair]) -> None:
+    def __init__(
+        self,
+        pairs: list[ManifestPair],
+        *,
+        d4_augmentation: bool = False,
+        synthetic_probability: float = 0.0,
+        degradation_profile: dict[str, object] | None = None,
+    ) -> None:
         if not pairs:
             raise InputValidationError("PairedNpyDataset requires at least one pair")
+        if not 0.0 <= synthetic_probability <= 1.0:
+            raise InputValidationError("synthetic_probability must be in [0, 1]")
+        if synthetic_probability and degradation_profile is None:
+            raise InputValidationError(
+                "Synthetic training requires a fitted degradation profile"
+            )
         self.pairs = list(pairs)
+        self.d4_augmentation = d4_augmentation
+        self.synthetic_probability = synthetic_probability
+        self.degradation_profile = (
+            None
+            if degradation_profile is None
+            else validate_degradation_profile(degradation_profile)
+        )
 
     def __len__(self) -> int:
         return len(self.pairs)
@@ -105,4 +126,13 @@ class PairedNpyDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str]]):
                 f"Pair '{pair.stem}' has input shape {degraded.shape} and target shape "
                 f"{target.shape}; expected {expected}"
             )
-        return torch.from_numpy(degraded[None]), torch.from_numpy(target[None]), pair.stem
+        degraded_tensor = torch.from_numpy(degraded[None])
+        target_tensor = torch.from_numpy(target[None])
+        if self.d4_augmentation:
+            transform = int(torch.randint(8, ()).item())
+            degraded_tensor = apply_d4(degraded_tensor, transform)
+            target_tensor = apply_d4(target_tensor, transform)
+        if self.synthetic_probability and float(torch.rand(()).item()) < self.synthetic_probability:
+            assert self.degradation_profile is not None
+            degraded_tensor = synthesize_degraded(target_tensor, self.degradation_profile)
+        return degraded_tensor, target_tensor, pair.stem

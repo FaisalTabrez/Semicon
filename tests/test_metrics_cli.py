@@ -28,11 +28,13 @@ def test_metrics_cli_writes_split_filtered_evidence(tmp_path: Path) -> None:
         np.save(target_dir / f"{index:06d}.npy", target.astype(np.float32))
 
     with manifest.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=("stem", "split"), lineterminator="\n")
+        writer = csv.DictWriter(
+            handle, fieldnames=("stem", "split", "texture_cluster"), lineterminator="\n"
+        )
         writer.writeheader()
-        writer.writerow({"stem": "000000", "split": "train"})
-        writer.writerow({"stem": "000001", "split": "val_id"})
-        writer.writerow({"stem": "000002", "split": "val_id"})
+        writer.writerow({"stem": "000000", "split": "train", "texture_cluster": "c0"})
+        writer.writerow({"stem": "000001", "split": "val_id", "texture_cluster": "c1"})
+        writer.writerow({"stem": "000002", "split": "val_id", "texture_cluster": "c1"})
 
     completed = subprocess.run(
         [
@@ -65,5 +67,6 @@ def test_metrics_cli_writes_split_filtered_evidence(tmp_path: Path) -> None:
     assert [row["stem"] for row in rows] == ["000001", "000002"]
     assert payload["pair_count"] == 2
     assert payload["split_counts"] == {"val_id": 2}
+    assert payload["aggregates"]["by_texture_cluster"]["c1"]["count"] == 2
     assert payload["metric_policy"]["lpips"]["enabled"] is False
     assert "LPIPS=disabled" in completed.stdout

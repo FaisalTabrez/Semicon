@@ -245,6 +245,39 @@ On resume, the engine validates model metadata, planned step count, manifest has
 
 The updated engine was calibrated at batch 16 for 200 steps on a Colab Tesla T4. It recorded `390.27 ms/step`, `3.7333 GiB` peak allocated CUDA memory, and a successful step `200 -> 220` resume in a new run directory. At this short horizon raw weights scored `26.763529 dB` versus EMA's `23.401285 dB`, so the automatic selector correctly retained raw weights.
 
+## Build the texture-held-out split
+
+The provisional hash holdout is not used for OOD claims. Build the final development split from the organizer's labeled training data only:
+
+```powershell
+python scripts/assign_texture_ood_split.py `
+  --manifest data/splits/manifest.csv `
+  --dataset-root C:\path\to\train `
+  --output data/splits/manifest_texture_ood.csv `
+  --audit reports/texture_split_audit.json
+```
+
+The splitter computes eleven deterministic GT descriptors covering intensity, entropy, gradients, Laplacian response, and radial FFT energy. Fixed-seed k-means forms 12 texture clusters; complete outlying clusters become `val_ood`, `val_id` is hash-stratified inside the remaining clusters, and the remainder is `train`. The audit records descriptor scaling, cluster sizes, held-out membership, hashes, and an explicit `public_test_used: false` assertion.
+
+Fit synthetic degradation ranges strictly from the resulting `train` rows:
+
+```powershell
+python scripts/fit_degradation_profile.py `
+  --manifest data/splits/manifest_texture_ood.csv `
+  --dataset-root C:\path\to\train `
+  --output reports/degradation_profile.json
+```
+
+Three same-budget configurations isolate the robustness variables:
+
+- `configs/naf_sr_ood_baseline.yaml`: paired D4 geometry, 100% real pairs;
+- `configs/naf_sr_synthetic15.yaml`: the baseline plus 15% fitted synthetic samples; and
+- `configs/naf_sr_conditioned.yaml`: the baseline plus internal `[mean,std,min,max]` FiLM conditioning.
+
+Synthetic operations—blur, area/bicubic downsampling, Gaussian noise, and multiplicative speckle—are randomly ordered per selected training sample and never clamp the generated input. Validation and public-test samples are never augmented. Metric reports include per-texture-cluster aggregates.
+
+After scoring each checkpoint separately on `val_id` and `val_ood`, use `scripts/record_ablation.py` to write the controlled decision table. The predeclared gate keeps a change only when at least two of three OOD metrics improve and validation-ID loses no more than `0.15 dB` PSNR or `0.002` SSIM.
+
 ## Reproducibility note
 
 `requirements.txt` currently pins the tested baseline runtime. It will be replaced by the complete frozen CUDA training environment after the final clean-environment verification, as required by the challenge.

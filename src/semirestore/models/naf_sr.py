@@ -30,6 +30,8 @@ class NAFSR(nn.Module):
         middle_blocks: int = 6,
         decoder_blocks: Sequence[int] = (2, 2, 2),
         dropout: float = 0.0,
+        statistics_conditioning: bool = False,
+        conditioning_hidden: int = 64,
     ) -> None:
         super().__init__()
         encoder_counts = tuple(int(value) for value in encoder_blocks)
@@ -46,6 +48,8 @@ class NAFSR(nn.Module):
         self.middle_blocks = middle_blocks
         self.decoder_counts = decoder_counts
         self.dropout = dropout
+        self.statistics_conditioning = statistics_conditioning
+        self.conditioning_hidden = conditioning_hidden
         self.padder_size = 2 ** len(encoder_counts)
 
         self.intro = nn.Conv2d(1, width, 3, padding=1)
@@ -70,6 +74,25 @@ class NAFSR(nn.Module):
             channels //= 2
             self.decoders.append(_block_stack(channels, count, dropout))
 
+        stage_channels = [
+            *(width * (2**index) for index in range(len(encoder_counts))),
+            width * (2 ** len(encoder_counts)),
+            *(width * (2**index) for index in reversed(range(len(decoder_counts)))),
+        ]
+        self.conditioning_channels = tuple(stage_channels)
+        if statistics_conditioning:
+            if conditioning_hidden < 4:
+                raise ValueError("conditioning_hidden must be at least 4")
+            self.conditioner = nn.Sequential(
+                nn.Linear(4, conditioning_hidden),
+                nn.GELU(),
+                nn.Linear(conditioning_hidden, 2 * sum(stage_channels)),
+            )
+            nn.init.zeros_(self.conditioner[-1].weight)
+            nn.init.zeros_(self.conditioner[-1].bias)
+        else:
+            self.conditioner = None
+
         self.sr_head = nn.Sequential(
             nn.Conv2d(width, self.scale * self.scale, 3, padding=1),
             nn.PixelShuffle(self.scale),
@@ -79,13 +102,42 @@ class NAFSR(nn.Module):
         nn.init.zeros_(final.bias)
 
     def model_config(self) -> dict[str, object]:
-        return {
+        config: dict[str, object] = {
             "width": self.width,
             "encoder_blocks": list(self.encoder_counts),
             "middle_blocks": self.middle_blocks,
             "decoder_blocks": list(self.decoder_counts),
             "dropout": self.dropout,
         }
+        if self.statistics_conditioning:
+            config["statistics_conditioning"] = True
+            config["conditioning_hidden"] = self.conditioning_hidden
+        return config
+
+    def _conditioning(self, inputs: torch.Tensor) -> list[torch.Tensor] | None:
+        if self.conditioner is None:
+            return None
+        flattened = inputs.flatten(2)
+        statistics = torch.cat(
+            (
+                flattened.mean(2),
+                flattened.std(2, unbiased=False),
+                flattened.amin(2),
+                flattened.amax(2),
+            ),
+            dim=1,
+        )
+        parameters = self.conditioner(statistics)
+        return list(
+            torch.split(parameters, [2 * value for value in self.conditioning_channels], dim=1)
+        )
+
+    @staticmethod
+    def _apply_condition(features: torch.Tensor, parameters: torch.Tensor) -> torch.Tensor:
+        scale, shift = parameters.chunk(2, dim=1)
+        return features * (1.0 + 0.1 * torch.tanh(scale)[:, :, None, None]) + (
+            0.1 * shift[:, :, None, None]
+        )
 
     def _pad(self, inputs: torch.Tensor) -> torch.Tensor:
         height, width = inputs.shape[-2:]
@@ -97,18 +149,30 @@ class NAFSR(nn.Module):
         if inputs.ndim != 4 or inputs.shape[1] != 1:
             raise ValueError(f"NAFSR expects NCHW input with one channel; got {tuple(inputs.shape)}")
         height, width = inputs.shape[-2:]
+        conditioning = self._conditioning(inputs)
+        condition_index = 0
         features = self.intro(self._pad(inputs))
         skips: list[torch.Tensor] = []
         for encoder, downsample in zip(self.encoders, self.downsamples, strict=True):
+            if conditioning is not None:
+                features = self._apply_condition(features, conditioning[condition_index])
+                condition_index += 1
             features = encoder(features)
             skips.append(features)
             features = downsample(features)
 
+        if conditioning is not None:
+            features = self._apply_condition(features, conditioning[condition_index])
+            condition_index += 1
         features = self.middle(features)
         for upsample, decoder, skip in zip(
             self.upsamples, self.decoders, reversed(skips), strict=True
         ):
-            features = decoder(upsample(features) + skip)
+            features = upsample(features) + skip
+            if conditioning is not None:
+                features = self._apply_condition(features, conditioning[condition_index])
+                condition_index += 1
+            features = decoder(features)
 
         learned_residual = self.sr_head(features)[..., : height * 2, : width * 2]
         bicubic = F.interpolate(

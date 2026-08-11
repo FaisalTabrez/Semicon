@@ -78,6 +78,20 @@ def test_tiny_training_run_writes_reloadable_artifacts(
         writer = csv.DictWriter(handle, fieldnames=rows[0].keys(), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+    profile = tmp_path / "degradation.json"
+    profile.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "blur_sigma": {"low": 0.1, "high": 0.3},
+                "gaussian_noise_std": {"low": 0.005, "high": 0.01},
+                "speckle_std": {"low": 0.005, "high": 0.01},
+                "additive_bias": {"low": -0.005, "high": 0.005},
+                "downsample_modes": ["area", "bicubic"],
+            }
+        ),
+        encoding="utf-8",
+    )
     config = tmp_path / "tiny.yaml"
     config.write_text(
         yaml.safe_dump(
@@ -93,6 +107,9 @@ def test_tiny_training_run_writes_reloadable_artifacts(
                     "seed": 7,
                     "device": "cpu",
                     "amp": False,
+                    "d4_augmentation": True,
+                    "synthetic_probability": 0.5,
+                    "degradation_profile": str(profile),
                     "batch_size": 2,
                     "num_workers": 0,
                     "max_steps": 4,
@@ -138,6 +155,9 @@ def test_tiny_training_run_writes_reloadable_artifacts(
     assert summary["parameter_count"] > 0
     assert np.isfinite(summary["best_val_psnr_db"])
     assert payload["data"]["input_policy"] == "raw_float32_no_clip"
+    assert payload["data"]["d4_augmentation"] is True
+    assert payload["data"]["synthetic_probability"] == 0.5
+    assert len(payload["data"]["degradation_profile_sha256"]) == 64
     assert payload["checkpoint_role"] == "best_inference"
     assert "optimizer_state_dict" not in payload
     assert payload["selected_weights"] in {"raw", "ema"}

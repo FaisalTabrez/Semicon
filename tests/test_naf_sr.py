@@ -80,3 +80,21 @@ def test_naf_sr_self_describing_checkpoint_round_trip(tmp_path: Path) -> None:
 
     assert payload["model_name"] == "naf_sr"
     assert torch.equal(model(inputs), restored(inputs))
+
+
+def test_statistics_conditioning_is_optional_stable_and_self_describing() -> None:
+    model = NAFSR(
+        width=8,
+        encoder_blocks=[1],
+        middle_blocks=1,
+        decoder_blocks=[1],
+        statistics_conditioning=True,
+        conditioning_hidden=8,
+    )
+    inputs = torch.randn((2, 1, 9, 11), requires_grad=True)
+    prediction = model(inputs)
+    prediction.mean().backward()
+    assert prediction.shape == (2, 1, 18, 22)
+    assert torch.isfinite(prediction).all()
+    assert model.model_config()["statistics_conditioning"] is True
+    assert sum(parameter.numel() for parameter in model.parameters()) < 12_000_000

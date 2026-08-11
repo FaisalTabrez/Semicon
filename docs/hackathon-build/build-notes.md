@@ -149,3 +149,14 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - The compact selected checkpoint measured `34.35 MiB`; the intentionally full resume checkpoint measured `171.85 MiB`. A fresh-process evaluator restored one public test input successfully.
 - A clean run directory resumed the full checkpoint from step 200 to step 220, reaching raw/EMA PSNR `26.807117`/`23.442411 dB` with matching manifest provenance. Evidence is persisted at `/content/drive/MyDrive/Semicon/artifacts/training_engine_91e2cb1`.
 - Checklist item 6 acceptance and verification gates passed.
+
+### Checklist item 7 implementation
+
+- Added deterministic GT texture descriptors (intensity quantiles, entropy, gradient/Laplacian energy, and radial FFT bands), robust scaling, fixed-seed k-means, complete-cluster pseudo-OOD selection, and cluster-stratified validation-ID assignment.
+- Split audits record every cluster size/distance/membership, source/output hashes, fitting provenance, and explicit confirmation that the public test set was not used. Output membership is invariant to manifest row order in tests.
+- Added paired D4 transforms and verified exact 2x alignment for all eight transforms. Geometry is applied only to training pairs.
+- Added a training-only fitted degradation profile and a raw-range synthetic path with randomized blur/downsample/Gaussian/speckle order. Profile fitting is CLI-restricted to manifest rows labeled `train`; profile hashes enter resolved configs and checkpoints.
+- Added optional per-image `[mean,std,min,max]` conditioning through zero-initialized FiLM parameters in NAF-SR. The branch is self-describing, stays below the model budget, and is disabled in the OOD baseline.
+- Added isolated baseline, 15% synthetic, and conditioning configurations plus an ablation recorder enforcing the predeclared ID regression floors (`-0.15 dB` PSNR, `-0.002` SSIM) and a two-of-three OOD metric improvement rule.
+- Metric evidence now includes per-texture-cluster aggregates. Local verification currently passes all 43 tests, including split invariants, D4 alignment, fitted degradation determinism, conditioned-model backward/metadata, training integration, and ablation decision logic.
+- Checklist item 7 remains open pending real-data split/profile inspection and same-budget Colab ablation results.

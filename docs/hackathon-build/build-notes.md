@@ -104,3 +104,14 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - Measured bicubic lower bound: PSNR `23.063744 dB` (95% bootstrap CI `[22.779444, 23.378360]`), SSIM `0.541088` (`[0.525420, 0.557836]`), and LPIPS-Alex `0.419660` (`[0.405365, 0.433218]`).
 - The manifest, split audit, per-image CSV, and aggregate JSON were persisted under `/content/drive/MyDrive/Semicon/artifacts`. These values are labeled provisional validation-ID evidence, not OOD or final-model results.
 - Checklist item 3 acceptance and verification gates passed.
+
+### Checklist item 4 implementation — awaiting Colab training verification
+
+- Added the 1,367,553-parameter EDSR-lite baseline: width 64, 16 residual blocks, residual scale 0.1, 2× pixel shuffle, and a bicubic global skip. The model returns unclamped training predictions and supports dynamic spatial dimensions.
+- Added Charbonnier loss, safe manifest-backed train/validation loading, raw input preservation, and explicit path-traversal rejection.
+- Added `train.py` and `configs/baseline_edsr.yaml` with minimal Phase-A AdamW training, CUDA FP16 AMP, warm-up plus cosine decay, gradient clipping, validation PSNR, CSV/JSON records, and best/last checkpoints. Full resume/EMA/reproducibility hardening remains checklist item 6.
+- Checkpoints embed model construction metadata, manifest SHA-256, loss, data/output policies, step, score, and environment. Evaluation reconstructs learned models from checkpoint metadata using `weights_only=True` and rejects model/checkpoint mismatches.
+- Added learned-model support to both `evaluation.py` and `evaluate_metrics.py`, plus a thin Colab launcher that calls the checked-in scripts rather than duplicating training logic.
+- The first local verification exposed `torch.__version__` as a non-primitive `TorchVersion` object that safe checkpoint loading rejected. Environment versions are now serialized as plain strings; unsafe pickle loading was not enabled.
+- Local automated verification: `python -m pytest -q` → 32 passed; compile checks passed; notebook JSON parsed; a tiny CPU training run wrote and safely reloaded its checkpoint; learned evaluation ran from a foreign working directory.
+- Checklist item 4 remains open pending the T4 eight-sample overfit, 200-step real-data calibration, full baseline training, and proof that validation PSNR exceeds the bicubic `23.063744 dB` lower bound.

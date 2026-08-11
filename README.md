@@ -4,7 +4,7 @@ Reproducible grayscale image restoration for the SEMICON India Hackathon 2026 pr
 
 ## Current status
 
-The repository contains the compliance-first inference path, deterministic paired-data audit, and locked labeled-metric tooling. Bicubic is deliberately a runnable lower bound, **not the final learned model**. EDSR-lite and NAF-SR training follow after the baseline evidence run.
+The repository contains the compliance-first inference path, deterministic paired-data audit, locked labeled-metric tooling, and the EDSR-lite learned-baseline training path. Bicubic is deliberately a runnable lower bound, **not the final learned model**. EDSR-lite GPU verification is in progress; NAF-SR follows after it clears the validation gate.
 
 ## Supported data
 
@@ -121,6 +121,60 @@ The first real-data evidence run used the deterministic provisional `val_id` hol
 | PSNR | 23.063744 dB | 22.779444–23.378360 |
 | SSIM | 0.541088 | 0.525420–0.557836 |
 | LPIPS-Alex | 0.419660 | 0.405365–0.433218 |
+
+## Train EDSR-lite
+
+The EDSR-lite baseline has 16 residual blocks, width 64, a 2× pixel-shuffle head, and a bicubic global skip. It has 1,367,553 parameters and trains against unclipped model output with Charbonnier loss.
+
+First prove the complete pipeline by overfitting eight samples:
+
+```powershell
+python train.py `
+  --config configs/baseline_edsr.yaml `
+  --manifest C:\path\to\manifest_provisional.csv `
+  --dataset-root C:\path\to\train `
+  --run-dir runs/edsr_overfit8 `
+  --device cuda `
+  --overfit-samples 8 `
+  --batch-size 8 `
+  --num-workers 0 `
+  --max-steps 300
+```
+
+Then run the real provisional train/validation baseline. The checked-in config declares 5,000 steps, validation every 250 steps, AdamW at `2e-4`, 100-step warm-up plus cosine decay, CUDA AMP, and gradient clipping at `1.0`:
+
+```powershell
+python train.py `
+  --config configs/baseline_edsr.yaml `
+  --manifest C:\path\to\manifest_provisional.csv `
+  --dataset-root C:\path\to\train `
+  --run-dir runs/edsr_lite_baseline `
+  --device cuda
+```
+
+Every run writes `best.pt`, `last.pt`, `history.csv`, `summary.json`, `resolved_config.yaml`, and `environment.json`. Checkpoints embed the architecture, data policy, manifest hash, loss, step, and environment and are loaded with PyTorch's safe `weights_only=True` path.
+
+Restore a directory with a learned checkpoint:
+
+```powershell
+python evaluation.py INPUT_DIR OUTPUT_DIR `
+  --model edsr_lite `
+  --weights runs/edsr_lite_baseline/best.pt `
+  --device cuda
+```
+
+Run the identical labeled evidence suite used for bicubic:
+
+```powershell
+python evaluate_metrics.py C:\path\to\train\NoisyLR C:\path\to\train\GT `
+  --model edsr_lite `
+  --weights runs/edsr_lite_baseline/best.pt `
+  --manifest C:\path\to\manifest_provisional.csv `
+  --split val_id `
+  --device cuda
+```
+
+The thin Colab launcher is [`notebooks/01_train_edsr_lite_colab.ipynb`](notebooks/01_train_edsr_lite_colab.ipynb); it only invokes the same version-controlled scripts.
 
 ## Reproducibility note
 

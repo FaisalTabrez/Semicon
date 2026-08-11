@@ -7,6 +7,9 @@ from pathlib import Path
 
 import numpy as np
 
+from semirestore.checkpoints import atomic_torch_save
+from semirestore.models import EDSRLite
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 EVALUATION_SCRIPT = PROJECT_ROOT / "evaluation.py"
 
@@ -65,3 +68,47 @@ def test_cli_runs_from_foreign_working_directory_and_protects_outputs(tmp_path: 
     )
     assert report_inside_output.returncode == 1
     assert "must be outside" in report_inside_output.stderr
+
+
+def test_cli_loads_self_describing_edsr_checkpoint(tmp_path: Path) -> None:
+    input_dir = tmp_path / "inputs"
+    output_dir = tmp_path / "outputs"
+    foreign_cwd = tmp_path / "elsewhere"
+    input_dir.mkdir()
+    foreign_cwd.mkdir()
+    np.save(input_dir / "sample.npy", np.zeros((6, 7), dtype=np.float32))
+    model = EDSRLite(width=8, num_blocks=1)
+    weights = tmp_path / "edsr.pt"
+    atomic_torch_save(
+        {
+            "format_version": 1,
+            "model_name": "edsr_lite",
+            "model_config": model.model_config(),
+            "model_state_dict": model.state_dict(),
+        },
+        weights,
+    )
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(EVALUATION_SCRIPT),
+            str(input_dir),
+            str(output_dir),
+            "--model",
+            "edsr_lite",
+            "--weights",
+            str(weights),
+            "--device",
+            "cpu",
+        ],
+        cwd=foreign_cwd,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    output = np.load(output_dir / "sample.npy", allow_pickle=False)
+    assert output.shape == (12, 14)
+    assert output.dtype == np.float32

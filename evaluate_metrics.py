@@ -29,6 +29,7 @@ from semirestore.data import (  # noqa: E402
     discover_npy_files,
     load_npy_image,
 )
+from semirestore.checkpoints import load_model_checkpoint  # noqa: E402
 from semirestore.inference import resolve_device  # noqa: E402
 from semirestore.metrics import (  # noqa: E402
     LPIPS_POLICY,
@@ -54,12 +55,11 @@ CSV_FIELDS = (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Score the bicubic lower bound on paired NoisyLR/GT NumPy directories."
-    )
+    parser = argparse.ArgumentParser(description="Score a restoration model on paired arrays.")
     parser.add_argument("input_dir", type=Path, help="Directory containing degraded arrays")
     parser.add_argument("target_dir", type=Path, help="Directory containing aligned GT arrays")
-    parser.add_argument("--model", choices=("bicubic",), default="bicubic")
+    parser.add_argument("--model", choices=("bicubic", "edsr_lite"), default="bicubic")
+    parser.add_argument("--weights", type=Path, help="Checkpoint required by learned models")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument(
@@ -217,6 +217,8 @@ def _summary_payload(
     lpips_enabled: bool,
     bootstrap_samples: int,
     bootstrap_seed: int,
+    model_name: str,
+    checkpoint_sha256: str | None,
 ) -> dict[str, object]:
     split_groups: dict[str, list[dict[str, str]]] = {}
     for row in rows:
@@ -227,8 +229,13 @@ def _summary_payload(
     worst_rows = sorted(finite_psnr_rows, key=lambda row: float(row["psnr_db"]))[:worst_count]
     return {
         "schema_version": 1,
-        "model": "bicubic",
-        "evidence_label": "labeled bicubic lower bound",
+        "model": model_name,
+        "evidence_label": (
+            "labeled bicubic lower bound"
+            if model_name == "bicubic"
+            else f"labeled {model_name} checkpoint evaluation"
+        ),
+        "checkpoint_sha256": checkpoint_sha256,
         "device": str(device),
         "pair_count": len(rows),
         "split_counts": dict(sorted(Counter(row["split"] for row in rows).items())),
@@ -316,7 +323,23 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         device = resolve_device(args.device)
-        model = BicubicRestorer().to(device).eval()
+        checkpoint_sha256 = None
+        if args.model == "bicubic":
+            if args.weights is not None:
+                raise InputValidationError("--weights cannot be used with the bicubic model")
+            model = BicubicRestorer()
+        else:
+            if args.weights is None:
+                raise InputValidationError(f"--weights is required for model {args.model}")
+            model, payload = load_model_checkpoint(args.weights)
+            if payload["model_name"] != args.model:
+                raise InputValidationError(
+                    f"Checkpoint model is {payload['model_name']}, not requested {args.model}"
+                )
+            checkpoint_sha256 = hashlib.sha256(
+                args.weights.expanduser().resolve().read_bytes()
+            ).hexdigest()
+        model = model.to(device).eval()
         lpips_model = None if args.no_lpips else create_lpips_model(device)
         rows: list[dict[str, str]] = []
         started = time.perf_counter()
@@ -340,7 +363,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 target_tensor = torch.from_numpy(np.stack(target_arrays))[:, None].to(device)
                 if not torch.isfinite(prediction_tensor).all():
-                    raise RuntimeError("Bicubic model produced NaN or infinity")
+                    raise RuntimeError(f"{args.model} produced NaN or infinity")
 
                 lpips_values: list[float | None]
                 if lpips_model is None:
@@ -399,6 +422,8 @@ def main(argv: list[str] | None = None) -> int:
             lpips_enabled=not args.no_lpips,
             bootstrap_samples=args.bootstrap_samples,
             bootstrap_seed=args.bootstrap_seed,
+            model_name=args.model,
+            checkpoint_sha256=checkpoint_sha256,
         )
         _atomic_text(csv_path, csv_buffer.getvalue())
         _atomic_text(
@@ -414,10 +439,10 @@ def main(argv: list[str] | None = None) -> int:
     ssim_mean = all_metrics["ssim"]["mean"]
     lpips_mean = all_metrics["lpips_alex"]["mean"]
     print(
-        f"Scored {len(rows)} pair(s) with bicubic on {device}: "
+        f"Scored {len(rows)} pair(s) with {args.model} on {device}: "
         f"PSNR={psnr_mean:.4f} dB, SSIM={ssim_mean:.6f}, "
         f"LPIPS={lpips_mean:.6f}" if lpips_mean is not None else
-        f"Scored {len(rows)} pair(s) with bicubic on {device}: "
+        f"Scored {len(rows)} pair(s) with {args.model} on {device}: "
         f"PSNR={psnr_mean:.4f} dB, SSIM={ssim_mean:.6f}, LPIPS=disabled"
     )
     print(f"Per-image CSV: {csv_path}")

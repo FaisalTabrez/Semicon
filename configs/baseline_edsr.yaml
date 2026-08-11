@@ -1,0 +1,29 @@
+model:
+  name: edsr_lite
+  width: 64
+  num_blocks: 16
+  residual_scale: 0.1
+
+data:
+  manifest: data/splits/manifest_provisional.csv
+  dataset_root: data/raw/train
+  train_split: train
+  val_split: val_id
+
+training:
+  seed: 2026
+  device: auto
+  amp: true
+  batch_size: 16
+  num_workers: 2
+  max_steps: 5000
+  validation_interval: 250
+  log_interval: 50
+  learning_rate: 0.0002
+  weight_decay: 0.0
+  warmup_steps: 100
+  gradient_clip_norm: 1.0
+  charbonnier_epsilon: 0.001
+
+output:
+  run_dir: runs/edsr_lite_baseline

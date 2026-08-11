@@ -32,6 +32,7 @@ class InferenceSummary:
     input_count: int
     elapsed_seconds: float
     mean_milliseconds_per_image: float
+    checkpoint: str | None = None
 
     def to_dict(self) -> dict[str, str | int | float]:
         return asdict(self)
@@ -86,6 +87,7 @@ def restore_directory(
     precision: str = "auto",
     batch_size: int = 1,
     overwrite: bool = False,
+    checkpoint: str | None = None,
 ) -> InferenceSummary:
     """Restore every valid input, preserving its relative `.npy` path."""
 
@@ -153,6 +155,7 @@ def restore_directory(
         input_count=len(inputs),
         elapsed_seconds=elapsed,
         mean_milliseconds_per_image=(elapsed * 1000.0) / len(inputs),
+        checkpoint=checkpoint,
     )
 
 

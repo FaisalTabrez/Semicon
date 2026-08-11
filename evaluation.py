@@ -13,6 +13,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from semirestore.data import InputValidationError  # noqa: E402
+from semirestore.checkpoints import load_model_checkpoint  # noqa: E402
 from semirestore.inference import restore_directory, write_report  # noqa: E402
 from semirestore.models import BicubicRestorer  # noqa: E402
 
@@ -25,9 +26,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("output_dir", type=Path, help="Directory for restored .npy images")
     parser.add_argument(
         "--model",
-        choices=("bicubic",),
+        choices=("bicubic", "edsr_lite"),
         default="bicubic",
         help="Restoration model (bicubic is the current lower-bound baseline)",
+    )
+    parser.add_argument(
+        "--weights",
+        type=Path,
+        help="Self-describing .pt checkpoint required by learned models",
     )
     parser.add_argument(
         "--device", choices=("auto", "cpu", "cuda"), default="auto", help="Inference device"
@@ -58,7 +64,20 @@ def main(argv: list[str] | None = None) -> int:
                 raise InputValidationError(
                     f"--report-json must be outside the restored output directory: {report_path}"
                 )
-        model = BicubicRestorer()
+        checkpoint_text = None
+        if args.model == "bicubic":
+            if args.weights is not None:
+                raise InputValidationError("--weights cannot be used with the bicubic model")
+            model = BicubicRestorer()
+        else:
+            if args.weights is None:
+                raise InputValidationError(f"--weights is required for model {args.model}")
+            model, payload = load_model_checkpoint(args.weights)
+            if payload["model_name"] != args.model:
+                raise InputValidationError(
+                    f"Checkpoint model is {payload['model_name']}, not requested {args.model}"
+                )
+            checkpoint_text = str(args.weights.expanduser().resolve())
         summary = restore_directory(
             model,
             args.input_dir,
@@ -68,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
             precision=args.precision,
             batch_size=args.batch_size,
             overwrite=args.overwrite,
+            checkpoint=checkpoint_text,
         )
         if args.report_json:
             write_report(args.report_json, summary)

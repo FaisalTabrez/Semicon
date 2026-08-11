@@ -25,7 +25,7 @@
   Acceptance: Current release resolves to 3,200 unique pairs; missing/duplicate/non-finite/wrong-shape samples fail with actionable paths; raw arrays remain outside Git.
   Verify: Run `scripts/build_manifest.py` against the extracted organizer training directories and inspect the generated counts/ranges.
 
-- [ ] **3. Add labeled metrics and evidence reports**
+- [x] **3. Add labeled metrics and evidence reports**
   Spec ref: `spec.md > Metrics and model selection`
   What to build: PSNR, SSIM, LPIPS preprocessing, diagnostic metrics, per-image CSV, aggregate JSON, and bicubic labeled evaluation.
   Acceptance: Metric preprocessing is fixed and tested; bicubic ID/OOD-ready evidence is reproducible; grayscale LPIPS conversion happens exactly once.

@@ -112,6 +112,16 @@ The evaluator writes a per-image CSV and aggregate JSON with PSNR, SSIM, LPIPS-A
 
 `--no-lpips` exists only for fast CPU development tests; do not use it for reported hackathon evidence.
 
+### Measured bicubic lower bound
+
+The first real-data evidence run used the deterministic provisional `val_id` holdout (480 pairs) on a Colab Tesla T4. These are preliminary validation-ID values, not OOD or final-model results:
+
+| Metric | Mean | Deterministic 95% bootstrap CI |
+|---|---:|---:|
+| PSNR | 23.063744 dB | 22.779444–23.378360 |
+| SSIM | 0.541088 | 0.525420–0.557836 |
+| LPIPS-Alex | 0.419660 | 0.405365–0.433218 |
+
 ## Reproducibility note
 
 `requirements.txt` currently pins the tested baseline runtime. It will be replaced by the complete frozen CUDA training environment after the final clean-environment verification, as required by the challenge.

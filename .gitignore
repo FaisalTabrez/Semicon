@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments and editor state
+.venv/
+venv/
+.env
+.env.*
+.idea/
+.vscode/
+
+# Organizer data and downloaded archives
+data/raw/
+*.zip
+
+# Experiment state and non-final checkpoints
+runs/
+wandb/
+lightning_logs/
+checkpoints/
+
+# OS metadata
+.DS_Store
+._*
+Thumbs.db

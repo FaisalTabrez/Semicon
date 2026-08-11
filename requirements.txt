@@ -1,3 +1,6 @@
 numpy==2.2.6
+lpips==0.1.4
 PyYAML==6.0.2
+scikit-image==0.25.2
 torch==2.6.0
+torchvision==0.21.0

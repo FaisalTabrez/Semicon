@@ -4,7 +4,7 @@ Reproducible grayscale image restoration for the SEMICON India Hackathon 2026 pr
 
 ## Current status
 
-The repository currently contains the first compliance-first vertical slice: safe NumPy input handling and a standalone bicubic 2× baseline. Bicubic is deliberately a runnable lower bound, **not the final learned model**. EDSR-lite and NAF-SR training are the next checklist items.
+The repository contains the compliance-first inference path, deterministic paired-data audit, and locked labeled-metric tooling. Bicubic is deliberately a runnable lower bound, **not the final learned model**. EDSR-lite and NAF-SR training follow after the baseline evidence run.
 
 ## Supported data
 
@@ -84,6 +84,33 @@ The command defaults to the current-release gate of 3,200 pairs and writes:
 - `reports/dataset_audit.json` with counts, shapes, dtypes, global ranges, ignored metadata, byte totals, and the manifest hash.
 
 Use `--expected-pairs 0` only for small development fixtures. Existing artifacts are protected unless `--overwrite` is explicit.
+
+## Build the provisional validation baseline
+
+Before the texture/source-aware OOD split is available, create an explicitly provisional 15% validation-ID holdout. Membership is determined by `SHA-256(seed:stem)`, so input row order cannot change the split:
+
+```powershell
+python scripts/assign_provisional_split.py `
+  --manifest data/splits/manifest.csv
+```
+
+This writes `data/splits/manifest_provisional.csv` and `reports/provisional_split_audit.json`. It labels only `train` and `val_id`; it never claims that a random/hash holdout is OOD.
+
+Run the labeled bicubic baseline:
+
+```powershell
+python evaluate_metrics.py `
+  C:\path\to\train\NoisyLR `
+  C:\path\to\train\GT `
+  --manifest data/splits/manifest_provisional.csv `
+  --split val_id `
+  --device cuda `
+  --batch-size 32
+```
+
+The evaluator writes a per-image CSV and aggregate JSON with PSNR, SSIM, LPIPS-Alex, Sobel-gradient L1, mean-intensity bias, pre-clamp out-of-range rate, worst-decile results, and deterministic 95% bootstrap confidence intervals. Metric preprocessing is fixed in `src/semirestore/metrics.py`: PSNR uses `data_range=1`, SSIM uses an 11×11 Gaussian window, and LPIPS repeats grayscale into RGB then maps `[0,1]` to `[-1,1]` once with package normalization disabled.
+
+`--no-lpips` exists only for fast CPU development tests; do not use it for reported hackathon evidence.
 
 ## Reproducibility note
 

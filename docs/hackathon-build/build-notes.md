@@ -145,4 +145,7 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - Added deterministic-algorithm mode, Python/NumPy/Torch CPU/CUDA seeding, worker seeding, resolved configuration and environment recording, atomic checkpoints, and `scripts/compare_training_runs.py`.
 - Local CPU acceptance test ran two independent seeded debug trainings and compared selected checkpoint tensors at exact tolerance (`atol=0`): maximum absolute difference `0.0`. A separate resume test continued a step-2 checkpoint to step 4 and safely reloaded both `last.pt` and `best.pt`.
 - Targeted automated verification: `python -m pytest tests/test_training_cli.py tests/test_training_reproducibility.py -q` -> `3 passed`.
-- The checklist remains open until the updated EMA/resume engine completes its 200-step T4 calibration and short resume probe in Colab.
+- T4 verification at commit `91e2cb1` completed with batch 16: step-200 raw/EMA PSNR was `26.763529`/`23.401285 dB`, so the declared raw-versus-EMA selector correctly retained raw weights at this short horizon. Mean step time was `390.27 ms`, peak allocated CUDA memory `3.7333 GiB`, and training time `78.05 s`.
+- The compact selected checkpoint measured `34.35 MiB`; the intentionally full resume checkpoint measured `171.85 MiB`. A fresh-process evaluator restored one public test input successfully.
+- A clean run directory resumed the full checkpoint from step 200 to step 220, reaching raw/EMA PSNR `26.807117`/`23.442411 dB` with matching manifest provenance. Evidence is persisted at `/content/drive/MyDrive/Semicon/artifacts/training_engine_91e2cb1`.
+- Checklist item 6 acceptance and verification gates passed.

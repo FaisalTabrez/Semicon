@@ -43,7 +43,7 @@
   Acceptance: Model stays within the parameter/checkpoint budget, trains without non-finite values, and is comparable to EDSR-lite on the identical split.
   Verify: Model unit tests, parameter report, short calibration run, and validation comparison.
 
-- [ ] **6. Complete the reproducible training engine**
+- [x] **6. Complete the reproducible training engine**
   Spec ref: `spec.md > Training design`
   What to build: Seed control, DataLoader worker seeding, Colab-safe AMP, AdamW, scheduler, gradient clipping, EMA, resolved configuration, runtime reconnection/resume support, environment report, and best/last checkpoints.
   Acceptance: A repeated deterministic debug run matches within documented tolerance and every run records config, split hash, environment, and metrics.

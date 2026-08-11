@@ -243,6 +243,8 @@ python train.py --config configs/naf_sr.yaml `
 
 On resume, the engine validates model metadata, planned step count, manifest hash, and sample policy before loading any state. It then begins a fresh deterministic epoch from the saved DataLoader RNG state; this policy is written into `resolved_config.yaml` and `summary.json` rather than implying bitwise continuation from the middle of an epoch.
 
+The updated engine was calibrated at batch 16 for 200 steps on a Colab Tesla T4. It recorded `390.27 ms/step`, `3.7333 GiB` peak allocated CUDA memory, and a successful step `200 -> 220` resume in a new run directory. At this short horizon raw weights scored `26.763529 dB` versus EMA's `23.401285 dB`, so the automatic selector correctly retained raw weights.
+
 ## Reproducibility note
 
 `requirements.txt` currently pins the tested baseline runtime. It will be replaced by the complete frozen CUDA training environment after the final clean-environment verification, as required by the challenge.

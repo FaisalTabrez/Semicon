@@ -160,3 +160,11 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - Added isolated baseline, 15% synthetic, and conditioning configurations plus an ablation recorder enforcing the predeclared ID regression floors (`-0.15 dB` PSNR, `-0.002` SSIM) and a two-of-three OOD metric improvement rule.
 - Metric evidence now includes per-texture-cluster aggregates. Local verification currently passes all 43 tests, including split invariants, D4 alignment, fitted degradation determinism, conditioned-model backward/metadata, training integration, and ablation decision logic.
 - Checklist item 7 remains open pending real-data split/profile inspection and same-budget Colab ablation results.
+
+### Checklist item 7 real-data split gate
+
+- At commit `9a6f05a`, all 3,200 labeled pairs were assigned to `2,181 train`, `480 val_id`, and `539 val_ood`; the manifest SHA-256 is `5c95b6353112e1d1ffe87f091c47af4528aff139b09fe40de9b1ffb2f030afae`.
+- Six complete outlying clusters (`texture_01`, `02`, `04`, `05`, `07`, and `10`) are exclusive to pseudo-OOD. Their sizes range from 18 to 182; all six remaining clusters contain only train/validation-ID rows. Leakage and public-test-use gates passed.
+- The train-only degradation fit measured Gaussian-noise standard deviation range `[0.032383, 0.080666]`, speckle standard deviation `[0.045366, 0.063229]`, additive bias `[-0.000877, 0.000891]`, and no supported extra blur beyond the downsampling base (`sigma 0.0`). The zero blur result is retained rather than inventing an unfitted range.
+- Bicubic confirms the texture holdout is materially harder: validation-ID PSNR/SSIM/LPIPS is `23.796180 / 0.552271 / 0.408522`; pseudo-OOD is `20.227942 / 0.425777 / 0.495734`.
+- Split, profile, per-image metrics, and aggregate evidence are persisted under `/content/drive/MyDrive/Semicon/artifacts/ood_setup_9a6f05a`. The next controlled experiment is the real-pair+D4 NAF-SR baseline on this immutable manifest.

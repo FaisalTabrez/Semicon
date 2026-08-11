@@ -278,6 +278,8 @@ Synthetic operations—blur, area/bicubic downsampling, Gaussian noise, and mult
 
 After scoring each checkpoint separately on `val_id` and `val_ood`, use `scripts/record_ablation.py` to write the controlled decision table. The predeclared gate keeps a change only when at least two of three OOD metrics improve and validation-ID loses no more than `0.15 dB` PSNR or `0.002` SSIM.
 
+The measured 12-cluster split contains 2,181 train, 480 validation-ID, and 539 pseudo-OOD pairs. Bicubic scores `23.796180 dB / 0.552271 / 0.408522` PSNR/SSIM/LPIPS on ID and `20.227942 dB / 0.425777 / 0.495734` on pseudo-OOD. The fitted profile found Gaussian-noise standard deviation `[0.032383,0.080666]`, speckle `[0.045366,0.063229]`, near-zero additive bias, and no evidence for extra blur beyond the downsampling base; an unsupported blur range was not fabricated.
+
 ## Reproducibility note
 
 `requirements.txt` currently pins the tested baseline runtime. It will be replaced by the complete frozen CUDA training environment after the final clean-environment verification, as required by the challenge.

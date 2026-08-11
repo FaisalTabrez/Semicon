@@ -393,6 +393,8 @@ def main(argv: list[str] | None = None) -> int:
             f"train={len(train_pairs)}, val={len(val_pairs)}, AMP={amp}."
         )
         print(f"Initial validation PSNR: {initial_val_psnr:.4f} dB")
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
 
         history: list[dict[str, object]] = []
         best_val_psnr = float("-inf")
@@ -474,6 +476,9 @@ def main(argv: list[str] | None = None) -> int:
 
         if device.type == "cuda":
             torch.cuda.synchronize(device)
+            peak_cuda_memory_bytes: int | None = torch.cuda.max_memory_allocated(device)
+        else:
+            peak_cuda_memory_bytes = None
         elapsed = time.perf_counter() - started
         assert initial_train_loss is not None
         summary = {
@@ -493,6 +498,7 @@ def main(argv: list[str] | None = None) -> int:
             "best_val_psnr_db": best_val_psnr,
             "elapsed_seconds": elapsed,
             "mean_step_milliseconds": elapsed * 1000.0 / step,
+            "peak_cuda_memory_bytes": peak_cuda_memory_bytes,
             "manifest_sha256": manifest_digest,
             "environment": environment,
             "best_checkpoint": "best.pt",

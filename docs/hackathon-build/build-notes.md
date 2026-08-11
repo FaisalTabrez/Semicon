@@ -177,3 +177,12 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - The hardest held-out group remains `texture_01` at `10.737488 dB` PSNR, followed by `texture_07` at `20.104299 dB` and `texture_10` at `20.478821 dB`; this is the principal robustness target for controlled ablations.
 - T4 training took `2004.06 s`, averaged `400.81 ms/step`, and peaked at `3.7100 GiB` allocated CUDA memory. The compact checkpoint is `34.3458 MiB`; the full resume checkpoint is `171.8550 MiB`.
 - Evidence is persisted under `/content/drive/MyDrive/Semicon/artifacts/naf_sr_ood_baseline_a39cec0`. The next isolated experiment changes only `training.synthetic_probability` from `0.0` to `0.15` using the train-only fitted degradation profile.
+
+### Checklist item 7 fitted-synthetic ablation
+
+- At commit `654d98f`, the 15% fitted-synthetic candidate was trained for the same 5,000-step budget and evaluated against the locked real-pairs+D4 baseline on the identical manifest. Its compact checkpoint SHA-256 is `fa306d53886e8ffaa7a64c41ab8f0030c3db67342b61767768631dea8f6c3297`.
+- Validation-ID changed by PSNR `-0.029481 dB`, SSIM `-0.000921`, and LPIPS-Alex `-0.000568`; these changes remain inside the predeclared ID regression floors.
+- Pseudo-OOD changed by PSNR `-0.041749 dB`, SSIM `-0.004407`, and LPIPS-Alex `+0.004568`. Because lower LPIPS is better, the candidate lost all three locked OOD metrics and was automatically rejected.
+- The candidate slightly improved the hardest small clusters (`texture_01` by about `+0.104 dB` and `texture_07` by about `+0.044 dB`) but regressed the larger held-out groups, so the aggregate rejection is retained rather than selecting on anecdotes.
+- T4 training took `2005.25 s`, averaged `401.05 ms/step`, peaked at `3.7100 GiB`, and again selected raw rather than EMA weights. Evidence is persisted under `/content/drive/MyDrive/Semicon/artifacts/naf_sr_synthetic15_654d98f`.
+- Decision: **reject** `synthetic_probability=0.15`. The final isolated robustness experiment adds only `[mean,std,min,max]` statistics conditioning to the real-pairs+D4 baseline.

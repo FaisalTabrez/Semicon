@@ -121,7 +121,7 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - Versus bicubic, EDSR-lite improved PSNR by `+4.727646 dB`, SSIM by `+0.208395`, and LPIPS by `-0.114432` (lower is better). Artifacts were persisted to Google Drive.
 - Checklist item 4 acceptance and verification gates passed.
 
-### Checklist item 5 implementation — awaiting Colab calibration
+### Checklist item 5 verification
 
 - Added the unconditioned NAF-SR primary model with the specified width 48 and `[2,2,4] / 6 / [2,2,2]` encoder/middle/decoder block layout.
 - The model includes channel-wise 2D LayerNorm, SimpleGate NAF blocks, simplified channel attention, zero-initialized block residual scales, three down/up stages with additive skips, padding/cropping for arbitrary input dimensions, a 2× pixel-shuffle residual head, and a bicubic global skip.
@@ -129,4 +129,20 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - Generalized `train.py`, `evaluation.py`, `evaluate_metrics.py`, the model factory, and safe checkpoint reconstruction for both learned architectures. Added `configs/naf_sr.yaml` and a thin Colab calibration launcher.
 - Split checkpoint roles: compact self-describing `best.pt` omits optimizer/scheduler moments for inference and budget compliance; `last.pt` retains full state for future resume support.
 - Local automated verification: model/block identity and backward tests, odd-size dynamic 2× output, exact parameter/state budget gates, safe checkpoint round trip, and tiny generic NAF training passed as part of the full test suite.
-- Checklist item 5 remains open pending the 200-step T4 timing/memory calibration and identical-split comparison with EDSR-lite.
+- T4 batch-4 200-step calibration: loss improved from `0.067087` to `0.018399`, validation PSNR reached `26.0986 dB`, mean step time was `150.37 ms`, and peak allocated CUDA memory was `1.0180 GiB`.
+- Full identical-budget run used batch 16 and 5,000 steps. Machine-timed training duration was `1871.64 s` (31m12s), mean recorded step time `374.33 ms`, and peak allocated CUDA memory `3.7012 GiB`.
+- Locked 480-image `val_id` evidence: PSNR `28.178510 dB` (95% CI `[27.774642, 28.585356]`), SSIM `0.760657` (`[0.745632, 0.774772]`), and LPIPS-Alex `0.276804` (`[0.263139, 0.291803]`).
+- Versus bicubic, NAF-SR improved PSNR by `+5.114766 dB`, SSIM by `+0.219569`, and LPIPS by `-0.142856`. Versus EDSR-lite, it improved PSNR by `+0.387120 dB`, SSIM by `+0.011174`, and LPIPS by `-0.028424`.
+- Compact `best.pt` measured `34.36 MiB`; resume-state `last.pt` measured `103.14 MiB`. Fresh-process inference passed and artifacts were persisted to Google Drive.
+- NAF-SR is selected as the primary architecture for subsequent training-engine and OOD work; EDSR-lite remains the low-risk fallback.
+- Checklist item 5 acceptance and verification gates passed.
+
+### Checklist item 6 implementation and local verification
+
+- Added optional EMA with configurable decay; raw and EMA validation PSNR are logged independently and the stronger weights are exported to the compact inference checkpoint.
+- Full-state `last.pt` now stores raw, EMA, and best weights plus optimizer, scheduler, AMP scaler, DataLoader generator state, planned step count, manifest hash, and environment. Resume rejects mismatched architecture, manifest, sample policy, or schedule before training.
+- Added `--stop-after-step` for Colab-safe interruption without changing the configured learning-rate schedule and `--resume` for continuation. Resume starts a fresh deterministic epoch from the saved DataLoader RNG state, and this limitation/policy is recorded in run artifacts.
+- Added deterministic-algorithm mode, Python/NumPy/Torch CPU/CUDA seeding, worker seeding, resolved configuration and environment recording, atomic checkpoints, and `scripts/compare_training_runs.py`.
+- Local CPU acceptance test ran two independent seeded debug trainings and compared selected checkpoint tensors at exact tolerance (`atol=0`): maximum absolute difference `0.0`. A separate resume test continued a step-2 checkpoint to step 4 and safely reloaded both `last.pt` and `best.pt`.
+- Targeted automated verification: `python -m pytest tests/test_training_cli.py tests/test_training_reproducibility.py -q` -> `3 passed`.
+- The checklist remains open until the updated EMA/resume engine completes its 200-step T4 calibration and short resume probe in Colab.

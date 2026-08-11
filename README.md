@@ -205,7 +205,43 @@ python train.py `
   --max-steps 200
 ```
 
-`best.pt` is a compact self-describing inference checkpoint without optimizer moments; `last.pt` retains full training state. The thin launcher is [`notebooks/02_train_naf_sr_colab.ipynb`](notebooks/02_train_naf_sr_colab.ipynb).
+`best.pt` is a compact self-describing inference checkpoint without optimizer moments. `last.pt` retains the raw model, EMA, best model, optimizer, scheduler, AMP scaler, and DataLoader RNG state. The thin launcher is [`notebooks/02_train_naf_sr_colab.ipynb`](notebooks/02_train_naf_sr_colab.ipynb).
+
+### Measured NAF-SR baseline
+
+The identical-budget NAF-SR run used batch 16, 5,000 steps, and the same split, seed, loss, and locked metric pipeline as EDSR-lite:
+
+| Metric | EDSR-lite | NAF-SR | Change |
+|---|---:|---:|---:|
+| PSNR | 27.791390 dB | 28.178510 dB | +0.387120 dB |
+| SSIM | 0.749483 | 0.760657 | +0.011174 |
+| LPIPS-Alex ↓ | 0.305228 | 0.276804 | -0.028424 |
+
+On a Colab Tesla T4, training recorded `1871.64 s`, `374.33 ms/step`, and `3.7012 GiB` peak allocated CUDA memory. The compact inference checkpoint is `34.36 MiB`. NAF-SR is the selected primary architecture; EDSR-lite remains the fallback.
+
+## Deterministic debug and resume
+
+The checked-in training configs enable EMA with decay `0.999`. Validation scores both raw and EMA weights, records both in `history.csv`, and writes whichever has the best PSNR to the compact `best.pt`. Every run also records the resolved config, manifest SHA-256, environment, metrics, seed mode, and resume provenance.
+
+For a short deterministic verification, run the same CPU command twice and compare the selected checkpoint tensors. The required tolerance is exact (`atol=0`) in the tested CPU runtime:
+
+```powershell
+python train.py --config configs/naf_sr.yaml --device cpu --deterministic `
+  --num-workers 0 --stop-after-step 2 --run-dir runs/debug_a
+python train.py --config configs/naf_sr.yaml --device cpu --deterministic `
+  --num-workers 0 --stop-after-step 2 --run-dir runs/debug_b
+python scripts/compare_training_runs.py runs/debug_a runs/debug_b --atol 0
+```
+
+`--stop-after-step` stops at an absolute step without changing the configured full learning-rate schedule. Resume from the full-state checkpoint into the same or a new run directory:
+
+```powershell
+python train.py --config configs/naf_sr.yaml `
+  --resume runs/naf_interrupted/last.pt `
+  --run-dir runs/naf_resumed
+```
+
+On resume, the engine validates model metadata, planned step count, manifest hash, and sample policy before loading any state. It then begins a fresh deterministic epoch from the saved DataLoader RNG state; this policy is written into `resolved_config.yaml` and `summary.json` rather than implying bitwise continuation from the middle of an epoch.
 
 ## Reproducibility note
 

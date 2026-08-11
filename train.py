@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import hashlib
 import json
@@ -30,6 +31,7 @@ if str(SRC_ROOT) not in sys.path:
 from semirestore.checkpoints import (  # noqa: E402
     CHECKPOINT_FORMAT_VERSION,
     atomic_torch_save,
+    load_checkpoint_payload,
 )
 from semirestore.data import InputValidationError  # noqa: E402
 from semirestore.inference import resolve_device  # noqa: E402
@@ -55,6 +57,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-steps", type=int)
     parser.add_argument("--batch-size", type=int)
     parser.add_argument("--num-workers", type=int)
+    parser.add_argument(
+        "--resume",
+        type=Path,
+        help="Resume from a training_resume last.pt checkpoint",
+    )
+    parser.add_argument(
+        "--stop-after-step",
+        type=int,
+        help="Stop at this absolute step while retaining the configured full schedule",
+    )
+    parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help="Enable deterministic PyTorch algorithms (intended for debug verification)",
+    )
     parser.add_argument(
         "--overfit-samples",
         type=int,
@@ -112,6 +129,8 @@ def _apply_overrides(config: dict[str, object], args: argparse.Namespace) -> dic
             training[key] = argument
     if args.no_amp:
         training["amp"] = False
+    if args.deterministic:
+        training["deterministic"] = True
     return config
 
 
@@ -136,7 +155,14 @@ def _prepare_run_dir(path: Path, *, overwrite: bool) -> Path:
     return resolved
 
 
-def _seed_everything(seed: int) -> torch.Generator:
+def _seed_everything(seed: int, *, deterministic: bool) -> torch.Generator:
+    if deterministic:
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+        torch.use_deterministic_algorithms(True)
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+    else:
+        torch.use_deterministic_algorithms(False)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -164,7 +190,7 @@ def _git_commit() -> str | None:
         return None
 
 
-def _environment(device: torch.device) -> dict[str, object]:
+def _environment(device: torch.device, *, deterministic: bool) -> dict[str, object]:
     return {
         "python": platform.python_version(),
         "platform": platform.platform(),
@@ -173,8 +199,35 @@ def _environment(device: torch.device) -> dict[str, object]:
         "cudnn": torch.backends.cudnn.version(),
         "device": str(device),
         "gpu": torch.cuda.get_device_name(device) if device.type == "cuda" else None,
+        "deterministic_algorithms": deterministic,
+        "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
         "git_commit": _git_commit(),
     }
+
+
+def _create_ema_model(model: torch.nn.Module) -> torch.nn.Module:
+    ema_model = copy.deepcopy(model).eval()
+    ema_model.requires_grad_(False)
+    return ema_model
+
+
+@torch.no_grad()
+def _update_ema(
+    ema_model: torch.nn.Module, model: torch.nn.Module, *, decay: float
+) -> None:
+    ema_parameters = dict(ema_model.named_parameters())
+    for name, parameter in model.named_parameters():
+        ema_parameters[name].lerp_(parameter.detach(), 1.0 - decay)
+    ema_buffers = dict(ema_model.named_buffers())
+    for name, buffer in model.named_buffers():
+        ema_buffers[name].copy_(buffer.detach())
+
+
+def _optimizer_to(optimizer: torch.optim.Optimizer, device: torch.device) -> None:
+    for state in optimizer.state.values():
+        for key, value in state.items():
+            if isinstance(value, torch.Tensor):
+                state[key] = value.to(device)
 
 
 def _manifest_sha256(path: Path) -> str:
@@ -219,7 +272,17 @@ def _scheduler_factor(step: int, *, max_steps: int, warmup_steps: int) -> float:
 
 
 def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
-    fields = ("step", "epoch", "train_loss", "best_train_loss", "val_psnr_db", "lr")
+    fields = (
+        "step",
+        "epoch",
+        "train_loss",
+        "best_train_loss",
+        "raw_val_psnr_db",
+        "ema_val_psnr_db",
+        "selected_val_psnr_db",
+        "selected_weights",
+        "lr",
+    )
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
         with temporary.open("w", encoding="utf-8", newline="") as handle:
@@ -239,9 +302,14 @@ def _checkpoint_payload(
     model_config: dict[str, object],
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler.LRScheduler,
+    scaler: torch.amp.GradScaler,
+    ema_model: torch.nn.Module | None,
+    dataloader_generator: torch.Generator,
     step: int,
     epoch: int,
     best_val_psnr: float,
+    best_weights_source: str,
+    best_model_state_dict: dict[str, torch.Tensor],
     config: dict[str, object],
     manifest_sha256: str,
     environment: dict[str, object],
@@ -256,11 +324,22 @@ def _checkpoint_payload(
         "model_name": model_name,
         "model_config": model_config,
         "model_state_dict": model.state_dict(),
+        "ema_state_dict": None if ema_model is None else ema_model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "scheduler_state_dict": scheduler.state_dict(),
+        "scaler_state_dict": scaler.state_dict(),
+        "dataloader_generator_state": dataloader_generator.get_state(),
         "step": step,
         "epoch": epoch,
         "best_val_psnr_db": best_val_psnr,
+        "best_weights_source": best_weights_source,
+        "best_model_state_dict": best_model_state_dict,
+        "planned_max_steps": training_config["max_steps"],
+        "deterministic": bool(training_config.get("deterministic", False)),
+        "ema": {
+            "enabled": ema_model is not None,
+            "decay": float(training_config.get("ema_decay", 0.999)),
+        },
         "loss": {
             "name": "charbonnier",
             "epsilon": training_config["charbonnier_epsilon"],
@@ -275,6 +354,47 @@ def _checkpoint_payload(
         },
         "environment": environment,
     }
+
+
+def _validate_resume_payload(
+    payload: dict[str, object],
+    *,
+    model_name: str,
+    model_config: dict[str, object],
+    manifest_sha256: str,
+    max_steps: int,
+    overfit_samples: int,
+) -> None:
+    if payload.get("checkpoint_role") != "training_resume":
+        raise InputValidationError("--resume requires a training_resume last.pt checkpoint")
+    if payload.get("model_name") != model_name or payload.get("model_config") != model_config:
+        raise InputValidationError("Resume checkpoint model does not match the resolved config")
+    checkpoint_data = payload.get("data")
+    if not isinstance(checkpoint_data, dict):
+        raise InputValidationError("Resume checkpoint is missing data provenance")
+    if checkpoint_data.get("manifest_sha256") != manifest_sha256:
+        raise InputValidationError("Resume checkpoint manifest hash does not match")
+    if checkpoint_data.get("overfit_samples") != overfit_samples:
+        raise InputValidationError("Resume checkpoint overfit sample count does not match")
+    if payload.get("planned_max_steps") != max_steps:
+        raise InputValidationError(
+            "Resume checkpoint planned_max_steps does not match the resolved config"
+        )
+    required = (
+        "model_state_dict",
+        "optimizer_state_dict",
+        "scheduler_state_dict",
+        "scaler_state_dict",
+        "dataloader_generator_state",
+        "best_model_state_dict",
+        "step",
+        "epoch",
+    )
+    missing = [key for key in required if key not in payload]
+    if missing:
+        raise InputValidationError(
+            "Resume checkpoint predates resumable-engine metadata: " + ", ".join(missing)
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -306,10 +426,18 @@ def main(argv: list[str] | None = None) -> int:
         grad_clip = float(training_config.get("gradient_clip_norm", 1.0))
         epsilon = float(training_config.get("charbonnier_epsilon", 1e-3))
         warmup_steps = int(training_config.get("warmup_steps", 0))
+        deterministic = bool(training_config.get("deterministic", False))
+        ema_enabled = bool(training_config.get("ema_enabled", True))
+        ema_decay = float(training_config.get("ema_decay", 0.999))
         if learning_rate <= 0 or weight_decay < 0 or grad_clip <= 0 or warmup_steps < 0:
             raise InputValidationError("Invalid optimizer, clipping, or warmup configuration")
+        if not 0.0 <= ema_decay < 1.0:
+            raise InputValidationError("training.ema_decay must be in [0, 1)")
         if args.overfit_samples < 0:
             raise InputValidationError("--overfit-samples cannot be negative")
+        target_step = max_steps if args.stop_after_step is None else args.stop_after_step
+        if target_step < 1 or target_step > max_steps:
+            raise InputValidationError("--stop-after-step must be between 1 and max_steps")
 
         manifest = _resolve_project_path(str(data_config["manifest"]))
         dataset_root = _resolve_project_path(str(data_config["dataset_root"]))
@@ -318,7 +446,28 @@ def main(argv: list[str] | None = None) -> int:
         )
         device = resolve_device(str(training_config.get("device", "auto")))
         amp = bool(training_config.get("amp", True)) and device.type == "cuda"
-        generator = _seed_everything(seed)
+        generator = _seed_everything(seed, deterministic=deterministic)
+        manifest_digest = _manifest_sha256(manifest)
+        construction_config = {
+            key: value for key, value in model_config.items() if key != "name"
+        }
+        resume_payload: dict[str, object] | None = None
+        resume_path: Path | None = None
+        if args.resume is not None:
+            resume_path = args.resume.expanduser().resolve()
+            resume_payload = load_checkpoint_payload(resume_path, map_location="cpu")
+            _validate_resume_payload(
+                resume_payload,
+                model_name=str(model_name),
+                model_config=construction_config,
+                manifest_sha256=manifest_digest,
+                max_steps=max_steps,
+                overfit_samples=args.overfit_samples,
+            )
+            generator_state = resume_payload["dataloader_generator_state"]
+            if not isinstance(generator_state, torch.Tensor):
+                raise InputValidationError("Resume checkpoint has invalid DataLoader RNG state")
+            generator.set_state(generator_state)
 
         train_pairs = read_manifest_pairs(
             manifest, dataset_root, split=str(data_config["train_split"])
@@ -355,10 +504,8 @@ def main(argv: list[str] | None = None) -> int:
             worker_init_fn=_seed_worker,
         )
 
-        construction_config = {
-            key: value for key, value in model_config.items() if key != "name"
-        }
         model = create_model(str(model_name), construction_config).to(device)
+        ema_model = _create_ema_model(model) if ema_enabled else None
         loss_function = CharbonnierLoss(epsilon).to(device)
         optimizer = torch.optim.AdamW(
             model.parameters(), lr=learning_rate, weight_decay=weight_decay
@@ -370,8 +517,38 @@ def main(argv: list[str] | None = None) -> int:
             ),
         )
         scaler = torch.amp.GradScaler(device.type, enabled=amp)
-        environment = _environment(device)
-        manifest_digest = _manifest_sha256(manifest)
+        environment = _environment(device, deterministic=deterministic)
+
+        start_step = 0
+        start_epoch = 0
+        best_val_psnr = float("-inf")
+        best_weights_source = "raw"
+        best_model_state_dict: dict[str, torch.Tensor] | None = None
+        if resume_payload is not None:
+            model.load_state_dict(resume_payload["model_state_dict"], strict=True)
+            optimizer.load_state_dict(resume_payload["optimizer_state_dict"])
+            _optimizer_to(optimizer, device)
+            scheduler.load_state_dict(resume_payload["scheduler_state_dict"])
+            scaler.load_state_dict(resume_payload["scaler_state_dict"])
+            checkpoint_ema = resume_payload.get("ema_state_dict")
+            if ema_model is not None:
+                if not isinstance(checkpoint_ema, dict):
+                    raise InputValidationError("EMA-enabled resume checkpoint is missing EMA state")
+                ema_model.load_state_dict(checkpoint_ema, strict=True)
+            elif checkpoint_ema is not None:
+                raise InputValidationError("Resume checkpoint EMA setting does not match config")
+            start_step = int(resume_payload["step"])
+            start_epoch = int(resume_payload["epoch"]) + 1
+            best_val_psnr = float(resume_payload.get("best_val_psnr_db", float("-inf")))
+            best_weights_source = str(resume_payload.get("best_weights_source", "raw"))
+            checkpoint_best_state = resume_payload["best_model_state_dict"]
+            if not isinstance(checkpoint_best_state, dict):
+                raise InputValidationError("Resume checkpoint has invalid best model state")
+            best_model_state_dict = checkpoint_best_state
+            if target_step <= start_step:
+                raise InputValidationError(
+                    "--stop-after-step/max_steps must be greater than the resumed step"
+                )
         resolved_record = {
             **config,
             "runtime": {
@@ -380,6 +557,13 @@ def main(argv: list[str] | None = None) -> int:
                 "run_dir": str(run_dir),
                 "overfit_samples": args.overfit_samples,
                 "amp_enabled": amp,
+                "deterministic": deterministic,
+                "ema_enabled": ema_enabled,
+                "ema_decay": ema_decay,
+                "resume_from": None if resume_path is None else str(resume_path),
+                "start_step": start_step,
+                "target_step": target_step,
+                "resume_data_policy": "fresh deterministic epoch from saved DataLoader RNG state",
             },
         }
         (run_dir / "resolved_config.yaml").write_text(
@@ -390,26 +574,33 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         parameter_count = sum(parameter.numel() for parameter in model.parameters())
-        initial_val_psnr = _validation_psnr(model, val_loader, device, amp=amp)
+        initial_raw_val_psnr = _validation_psnr(model, val_loader, device, amp=amp)
+        initial_ema_val_psnr = (
+            _validation_psnr(ema_model, val_loader, device, amp=amp)
+            if ema_model is not None
+            else None
+        )
         print(
             f"Training {model_name} ({parameter_count:,} parameters) on {device}; "
-            f"train={len(train_pairs)}, val={len(val_pairs)}, AMP={amp}."
+            f"train={len(train_pairs)}, val={len(val_pairs)}, AMP={amp}, "
+            f"EMA={ema_enabled}, deterministic={deterministic}."
         )
-        print(f"Initial validation PSNR: {initial_val_psnr:.4f} dB")
+        print(f"Initial raw validation PSNR: {initial_raw_val_psnr:.4f} dB")
+        if resume_path is not None:
+            print(f"Resumed step {start_step} from {resume_path}")
         if device.type == "cuda":
             torch.cuda.reset_peak_memory_stats(device)
 
         history: list[dict[str, object]] = []
-        best_val_psnr = float("-inf")
         best_train_loss = float("inf")
         initial_train_loss: float | None = None
         final_train_loss = float("nan")
-        step = 0
-        epoch = 0
+        step = start_step
+        epoch = start_epoch
         iterator = iter(train_loader)
         started = time.perf_counter()
 
-        while step < max_steps:
+        while step < target_step:
             try:
                 degraded, target, _ = next(iterator)
             except StopIteration:
@@ -431,40 +622,77 @@ def main(argv: list[str] | None = None) -> int:
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
+            if ema_model is not None:
+                _update_ema(ema_model, model, decay=ema_decay)
 
             step += 1
             final_train_loss = float(loss.detach().item())
             if initial_train_loss is None:
                 initial_train_loss = final_train_loss
             best_train_loss = min(best_train_loss, final_train_loss)
-            should_validate = step % validation_interval == 0 or step == max_steps
-            val_psnr: float | None = None
+            should_validate = step % validation_interval == 0 or step == target_step
+            raw_val_psnr: float | None = None
+            ema_val_psnr: float | None = None
+            selected_val_psnr: float | None = None
+            selected_weights = ""
             if should_validate:
-                val_psnr = _validation_psnr(model, val_loader, device, amp=amp)
+                raw_val_psnr = _validation_psnr(model, val_loader, device, amp=amp)
+                if ema_model is not None:
+                    ema_val_psnr = _validation_psnr(
+                        ema_model, val_loader, device, amp=amp
+                    )
+                candidates = [(raw_val_psnr, "raw")]
+                if ema_val_psnr is not None:
+                    candidates.append((ema_val_psnr, "ema"))
+                selected_val_psnr, selected_weights = max(candidates, key=lambda item: item[0])
+                is_new_best = selected_val_psnr > best_val_psnr
+                if is_new_best:
+                    best_val_psnr = selected_val_psnr
+                    best_weights_source = selected_weights
+                    selected_model = ema_model if selected_weights == "ema" else model
+                    assert selected_model is not None
+                    best_model_state_dict = {
+                        key: value.detach().cpu().clone()
+                        for key, value in selected_model.state_dict().items()
+                    }
+                assert best_model_state_dict is not None
                 payload = _checkpoint_payload(
                     model=model,
                     model_name=str(model_name),
                     model_config=construction_config,
                     optimizer=optimizer,
                     scheduler=scheduler,
+                    scaler=scaler,
+                    ema_model=ema_model,
+                    dataloader_generator=generator,
                     step=step,
                     epoch=epoch,
-                    best_val_psnr=max(best_val_psnr, val_psnr),
+                    best_val_psnr=best_val_psnr,
+                    best_weights_source=best_weights_source,
+                    best_model_state_dict=best_model_state_dict,
                     config=config,
                     manifest_sha256=manifest_digest,
                     environment=environment,
                     overfit_samples=args.overfit_samples,
                 )
                 atomic_torch_save(payload, run_dir / "last.pt")
-                if val_psnr > best_val_psnr:
-                    best_val_psnr = val_psnr
-                    best_payload = {
-                        key: value
-                        for key, value in payload.items()
-                        if key not in {"optimizer_state_dict", "scheduler_state_dict"}
+                best_payload = {
+                    key: value
+                    for key, value in payload.items()
+                    if key
+                    not in {
+                        "optimizer_state_dict",
+                        "scheduler_state_dict",
+                        "scaler_state_dict",
+                        "ema_state_dict",
+                        "dataloader_generator_state",
+                        "best_model_state_dict",
                     }
-                    best_payload["checkpoint_role"] = "best_inference"
-                    atomic_torch_save(best_payload, run_dir / "best.pt")
+                }
+                best_payload["model_state_dict"] = best_model_state_dict
+                best_payload["checkpoint_role"] = "best_inference"
+                best_payload["selected_weights"] = best_weights_source
+                atomic_torch_save(best_payload, run_dir / "best.pt")
 
             history.append(
                 {
@@ -472,14 +700,28 @@ def main(argv: list[str] | None = None) -> int:
                     "epoch": epoch,
                     "train_loss": final_train_loss,
                     "best_train_loss": best_train_loss,
-                    "val_psnr_db": "" if val_psnr is None else val_psnr,
+                    "raw_val_psnr_db": "" if raw_val_psnr is None else raw_val_psnr,
+                    "ema_val_psnr_db": "" if ema_val_psnr is None else ema_val_psnr,
+                    "selected_val_psnr_db": (
+                        "" if selected_val_psnr is None else selected_val_psnr
+                    ),
+                    "selected_weights": selected_weights,
                     "lr": optimizer.param_groups[0]["lr"],
                 }
             )
             if step % log_interval == 0 or should_validate:
-                validation_text = "" if val_psnr is None else f", val_psnr={val_psnr:.4f}"
+                validation_text = (
+                    ""
+                    if selected_val_psnr is None
+                    else (
+                        f", raw_psnr={raw_val_psnr:.4f}, "
+                        f"ema_psnr={ema_val_psnr:.4f}, selected={selected_weights}"
+                        if ema_val_psnr is not None
+                        else f", raw_psnr={raw_val_psnr:.4f}, selected=raw"
+                    )
+                )
                 print(
-                    f"step={step}/{max_steps} loss={final_train_loss:.6f} "
+                    f"step={step}/{target_step} loss={final_train_loss:.6f} "
                     f"best_loss={best_train_loss:.6f}{validation_text}"
                 )
             if step % log_interval == 0 or should_validate:
@@ -492,11 +734,14 @@ def main(argv: list[str] | None = None) -> int:
             peak_cuda_memory_bytes = None
         elapsed = time.perf_counter() - started
         assert initial_train_loss is not None
+        segment_steps = step - start_step
         summary = {
             "schema_version": 1,
             "model": model_name,
             "parameter_count": parameter_count,
             "step": step,
+            "start_step": start_step,
+            "target_step": target_step,
             "epoch": epoch,
             "train_pair_count": len(train_pairs),
             "val_pair_count": len(val_pairs),
@@ -505,10 +750,18 @@ def main(argv: list[str] | None = None) -> int:
             "final_train_loss": final_train_loss,
             "best_train_loss": best_train_loss,
             "loss_reduction_ratio": best_train_loss / initial_train_loss,
-            "initial_val_psnr_db": initial_val_psnr,
+            "initial_raw_val_psnr_db": initial_raw_val_psnr,
+            "initial_ema_val_psnr_db": initial_ema_val_psnr,
+            "initial_val_psnr_db": initial_raw_val_psnr,
             "best_val_psnr_db": best_val_psnr,
+            "best_weights_source": best_weights_source,
+            "ema_enabled": ema_enabled,
+            "ema_decay": ema_decay,
+            "deterministic": deterministic,
+            "resumed_from": None if resume_path is None else str(resume_path),
+            "resume_data_policy": "fresh deterministic epoch from saved DataLoader RNG state",
             "elapsed_seconds": elapsed,
-            "mean_step_milliseconds": elapsed * 1000.0 / step,
+            "mean_step_milliseconds": elapsed * 1000.0 / segment_steps,
             "peak_cuda_memory_bytes": peak_cuda_memory_bytes,
             "manifest_sha256": manifest_digest,
             "environment": environment,

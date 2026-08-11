@@ -37,7 +37,7 @@
   Acceptance: The model overfits eight samples, produces `2H×2W`, reloads in a fresh process, and beats bicubic on mean validation PSNR.
   Verify: Run the overfit test, short training configuration, and learned-checkpoint evaluator smoke test.
 
-- [ ] **5. Implement the NAF-SR primary model**
+- [x] **5. Implement the NAF-SR primary model**
   Spec ref: `spec.md > Architecture > Primary model`
   What to build: NAF blocks, three-scale encoder/decoder, pixel-shuffle residual head, bicubic global skip, and self-describing checkpoint construction.
   Acceptance: Model stays within the parameter/checkpoint budget, trains without non-finite values, and is comparable to EDSR-lite on the identical split.

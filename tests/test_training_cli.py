@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 import yaml
 
-from semirestore.checkpoints import load_model_checkpoint
+from semirestore.checkpoints import load_checkpoint_payload, load_model_checkpoint
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -140,6 +140,12 @@ def test_tiny_training_run_writes_reloadable_artifacts(
     assert payload["data"]["input_policy"] == "raw_float32_no_clip"
     assert payload["checkpoint_role"] == "best_inference"
     assert "optimizer_state_dict" not in payload
+    assert payload["selected_weights"] in {"raw", "ema"}
+    resume_payload = load_checkpoint_payload(run_dir / "last.pt")
+    assert resume_payload["checkpoint_role"] == "training_resume"
+    assert isinstance(resume_payload["ema_state_dict"], dict)
+    assert isinstance(resume_payload["best_model_state_dict"], dict)
+    assert resume_payload["planned_max_steps"] == 4
     assert model.model_config() == expected_model_config
     assert (run_dir / "history.csv").is_file()
     assert (run_dir / "resolved_config.yaml").is_file()

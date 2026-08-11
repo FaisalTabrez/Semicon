@@ -26,7 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("output_dir", type=Path, help="Directory for restored .npy images")
     parser.add_argument(
         "--model",
-        choices=("bicubic", "edsr_lite"),
+        choices=("bicubic", "edsr_lite", "naf_sr"),
         default="bicubic",
         help="Restoration model (bicubic is the current lower-bound baseline)",
     )

@@ -58,7 +58,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Score a restoration model on paired arrays.")
     parser.add_argument("input_dir", type=Path, help="Directory containing degraded arrays")
     parser.add_argument("target_dir", type=Path, help="Directory containing aligned GT arrays")
-    parser.add_argument("--model", choices=("bicubic", "edsr_lite"), default="bicubic")
+    parser.add_argument(
+        "--model", choices=("bicubic", "edsr_lite", "naf_sr"), default="bicubic"
+    )
     parser.add_argument("--weights", type=Path, help="Checkpoint required by learned models")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--batch-size", type=int, default=16)

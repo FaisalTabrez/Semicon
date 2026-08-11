@@ -7,13 +7,50 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
+import yaml
 
 from semirestore.checkpoints import load_model_checkpoint
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_tiny_training_run_writes_reloadable_artifacts(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("model_config", "expected_model_config"),
+    [
+        (
+            {
+                "name": "edsr_lite",
+                "width": 8,
+                "num_blocks": 1,
+                "residual_scale": 0.1,
+            },
+            {"width": 8, "num_blocks": 1, "residual_scale": 0.1},
+        ),
+        (
+            {
+                "name": "naf_sr",
+                "width": 8,
+                "encoder_blocks": [1],
+                "middle_blocks": 1,
+                "decoder_blocks": [1],
+                "dropout": 0.0,
+            },
+            {
+                "width": 8,
+                "encoder_blocks": [1],
+                "middle_blocks": 1,
+                "decoder_blocks": [1],
+                "dropout": 0.0,
+            },
+        ),
+    ],
+)
+def test_tiny_training_run_writes_reloadable_artifacts(
+    tmp_path: Path,
+    model_config: dict[str, object],
+    expected_model_config: dict[str, object],
+) -> None:
     root = tmp_path / "train"
     input_dir = root / "NoisyLR"
     target_dir = root / "GT"
@@ -43,33 +80,34 @@ def test_tiny_training_run_writes_reloadable_artifacts(tmp_path: Path) -> None:
         writer.writerows(rows)
     config = tmp_path / "tiny.yaml"
     config.write_text(
-        """model:
-  name: edsr_lite
-  width: 8
-  num_blocks: 1
-  residual_scale: 0.1
-data:
-  manifest: unused.csv
-  dataset_root: unused
-  train_split: train
-  val_split: val_id
-training:
-  seed: 7
-  device: cpu
-  amp: false
-  batch_size: 2
-  num_workers: 0
-  max_steps: 4
-  validation_interval: 2
-  log_interval: 1
-  learning_rate: 0.001
-  weight_decay: 0.0
-  warmup_steps: 0
-  gradient_clip_norm: 1.0
-  charbonnier_epsilon: 0.001
-output:
-  run_dir: unused-run
-""",
+        yaml.safe_dump(
+            {
+                "model": model_config,
+                "data": {
+                    "manifest": "unused.csv",
+                    "dataset_root": "unused",
+                    "train_split": "train",
+                    "val_split": "val_id",
+                },
+                "training": {
+                    "seed": 7,
+                    "device": "cpu",
+                    "amp": False,
+                    "batch_size": 2,
+                    "num_workers": 0,
+                    "max_steps": 4,
+                    "validation_interval": 2,
+                    "log_interval": 1,
+                    "learning_rate": 0.001,
+                    "weight_decay": 0.0,
+                    "warmup_steps": 0,
+                    "gradient_clip_norm": 1.0,
+                    "charbonnier_epsilon": 0.001,
+                },
+                "output": {"run_dir": "unused-run"},
+            },
+            sort_keys=False,
+        ),
         encoding="utf-8",
     )
     run_dir = tmp_path / "run"
@@ -100,6 +138,8 @@ output:
     assert summary["parameter_count"] > 0
     assert np.isfinite(summary["best_val_psnr_db"])
     assert payload["data"]["input_policy"] == "raw_float32_no_clip"
-    assert model.model_config() == {"width": 8, "num_blocks": 1, "residual_scale": 0.1}
+    assert payload["checkpoint_role"] == "best_inference"
+    assert "optimizer_state_dict" not in payload
+    assert model.model_config() == expected_model_config
     assert (run_dir / "history.csv").is_file()
     assert (run_dir / "resolved_config.yaml").is_file()

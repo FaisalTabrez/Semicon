@@ -105,7 +105,7 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - The manifest, split audit, per-image CSV, and aggregate JSON were persisted under `/content/drive/MyDrive/Semicon/artifacts`. These values are labeled provisional validation-ID evidence, not OOD or final-model results.
 - Checklist item 3 acceptance and verification gates passed.
 
-### Checklist item 4 implementation — awaiting Colab training verification
+### Checklist item 4 verification
 
 - Added the 1,367,553-parameter EDSR-lite baseline: width 64, 16 residual blocks, residual scale 0.1, 2× pixel shuffle, and a bicubic global skip. The model returns unclamped training predictions and supports dynamic spatial dimensions.
 - Added Charbonnier loss, safe manifest-backed train/validation loading, raw input preservation, and explicit path-traversal rejection.
@@ -114,4 +114,19 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - Added learned-model support to both `evaluation.py` and `evaluate_metrics.py`, plus a thin Colab launcher that calls the checked-in scripts rather than duplicating training logic.
 - The first local verification exposed `torch.__version__` as a non-primitive `TorchVersion` object that safe checkpoint loading rejected. Environment versions are now serialized as plain strings; unsafe pickle loading was not enabled.
 - Local automated verification: `python -m pytest -q` → 32 passed; compile checks passed; notebook JSON parsed; a tiny CPU training run wrote and safely reloaded its checkpoint; learned evaluation ran from a foreign working directory.
-- Checklist item 4 remains open pending the T4 eight-sample overfit, 200-step real-data calibration, full baseline training, and proof that validation PSNR exceeds the bicubic `23.063744 dB` lower bound.
+- T4 eight-sample proof: training loss improved from `0.052348` to `0.035487` and same-eight PSNR improved from `23.5964` to `26.6438 dB`; the self-describing checkpoint also passed a fresh-process evaluator smoke run.
+- T4 200-step calibration at batch 16: loss improved from `0.066663` to `0.024680`, validation PSNR reached `26.8658 dB`, mean recorded step time was `255.28 ms`, and peak allocated CUDA memory was `1.4646 GiB`.
+- Full 5,000-step T4 run: machine-timed training duration `1354.33 s` (22m34s), with the participant observing roughly 14 minutes wall time; use the machine timer in formal evidence. Peak allocated CUDA memory remained `1.4646 GiB`.
+- Locked 480-image `val_id` evidence: PSNR `27.791390 dB` (95% CI `[27.398752, 28.203492]`), SSIM `0.749483` (`[0.734131, 0.764081]`), and LPIPS-Alex `0.305228` (`[0.288830, 0.321737]`).
+- Versus bicubic, EDSR-lite improved PSNR by `+4.727646 dB`, SSIM by `+0.208395`, and LPIPS by `-0.114432` (lower is better). Artifacts were persisted to Google Drive.
+- Checklist item 4 acceptance and verification gates passed.
+
+### Checklist item 5 implementation — awaiting Colab calibration
+
+- Added the unconditioned NAF-SR primary model with the specified width 48 and `[2,2,4] / 6 / [2,2,2]` encoder/middle/decoder block layout.
+- The model includes channel-wise 2D LayerNorm, SimpleGate NAF blocks, simplified channel attention, zero-initialized block residual scales, three down/up stages with additive skips, padding/cropping for arbitrary input dimensions, a 2× pixel-shuffle residual head, and a bicubic global skip.
+- Measured parameter count is `8,974,084`; the estimated FP32 state size is `34.23 MiB`, under the `12M`/`60 MiB` limits without reducing the specified width.
+- Generalized `train.py`, `evaluation.py`, `evaluate_metrics.py`, the model factory, and safe checkpoint reconstruction for both learned architectures. Added `configs/naf_sr.yaml` and a thin Colab calibration launcher.
+- Split checkpoint roles: compact self-describing `best.pt` omits optimizer/scheduler moments for inference and budget compliance; `last.pt` retains full state for future resume support.
+- Local automated verification: model/block identity and backward tests, odd-size dynamic 2× output, exact parameter/state budget gates, safe checkpoint round trip, and tiny generic NAF training passed as part of the full test suite.
+- Checklist item 5 remains open pending the 200-step T4 timing/memory calibration and identical-split comparison with EDSR-lite.

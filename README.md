@@ -4,7 +4,7 @@ Reproducible grayscale image restoration for the SEMICON India Hackathon 2026 pr
 
 ## Current status
 
-The repository contains the compliance-first inference path, deterministic paired-data audit, locked labeled-metric tooling, and the EDSR-lite learned-baseline training path. Bicubic is deliberately a runnable lower bound, **not the final learned model**. EDSR-lite GPU verification is in progress; NAF-SR follows after it clears the validation gate.
+The repository contains the compliance-first inference path, deterministic paired-data audit, locked labeled-metric tooling, the verified EDSR-lite baseline, and the unconditioned NAF-SR primary model. Bicubic remains only a runnable lower bound. NAF-SR GPU calibration and comparison are now in progress.
 
 ## Supported data
 
@@ -175,6 +175,37 @@ python evaluate_metrics.py C:\path\to\train\NoisyLR C:\path\to\train\GT `
 ```
 
 The thin Colab launcher is [`notebooks/01_train_edsr_lite_colab.ipynb`](notebooks/01_train_edsr_lite_colab.ipynb); it only invokes the same version-controlled scripts.
+
+### Measured EDSR-lite baseline
+
+The 5,000-step EDSR-lite run used the identical 480-pair provisional `val_id` split and metric implementation as bicubic:
+
+| Metric | Bicubic | EDSR-lite | Change |
+|---|---:|---:|---:|
+| PSNR | 23.063744 dB | 27.791390 dB | +4.727646 dB |
+| SSIM | 0.541088 | 0.749483 | +0.208395 |
+| LPIPS-Alex ↓ | 0.419660 | 0.305228 | -0.114432 |
+
+On a Colab Tesla T4, the training process recorded `1354.33 s` and `1.4646 GiB` peak allocated CUDA memory. These remain provisional validation-ID results, not texture-held-out OOD results.
+
+## Train NAF-SR
+
+The unconditioned primary model uses a width-48, three-stage NAF encoder/decoder with block layout `[2,2,4] / 6 / [2,2,2]`, additive skips, a 2× pixel-shuffle residual head, and a bicubic global skip. It has 8,974,084 parameters; its FP32 model state is approximately 34.23 MiB.
+
+Start with the required 200-step T4 calibration before choosing the full-run batch size and duration:
+
+```powershell
+python train.py `
+  --config configs/naf_sr.yaml `
+  --manifest C:\path\to\manifest_provisional.csv `
+  --dataset-root C:\path\to\train `
+  --run-dir runs/naf_sr_calibration_200 `
+  --device cuda `
+  --batch-size 4 `
+  --max-steps 200
+```
+
+`best.pt` is a compact self-describing inference checkpoint without optimizer moments; `last.pt` retains full training state. The thin launcher is [`notebooks/02_train_naf_sr_colab.ipynb`](notebooks/02_train_naf_sr_colab.ipynb).
 
 ## Reproducibility note
 

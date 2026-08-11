@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Script-first EDSR-lite training entry point for local and Colab runs."""
+"""Script-first restoration training entry point for local and Colab runs."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from semirestore.checkpoints import (  # noqa: E402
 from semirestore.data import InputValidationError  # noqa: E402
 from semirestore.inference import resolve_device  # noqa: E402
 from semirestore.losses import CharbonnierLoss  # noqa: E402
-from semirestore.models import EDSRLite  # noqa: E402
+from semirestore.models import create_model  # noqa: E402
 from semirestore.training_data import (  # noqa: E402
     PairedNpyDataset,
     read_manifest_pairs,
@@ -42,7 +42,7 @@ from semirestore.training_data import (  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Train the EDSR-lite restoration baseline.")
+    parser = argparse.ArgumentParser(description="Train a configured restoration baseline.")
     parser.add_argument(
         "--config",
         type=Path,
@@ -234,7 +234,9 @@ def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
 
 def _checkpoint_payload(
     *,
-    model: EDSRLite,
+    model: torch.nn.Module,
+    model_name: str,
+    model_config: dict[str, object],
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler.LRScheduler,
     step: int,
@@ -250,8 +252,9 @@ def _checkpoint_payload(
     assert isinstance(data_config, dict) and isinstance(training_config, dict)
     return {
         "format_version": CHECKPOINT_FORMAT_VERSION,
-        "model_name": "edsr_lite",
-        "model_config": model.model_config(),
+        "checkpoint_role": "training_resume",
+        "model_name": model_name,
+        "model_config": model_config,
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "scheduler_state_dict": scheduler.state_dict(),
@@ -286,8 +289,9 @@ def main(argv: list[str] | None = None) -> int:
             isinstance(section, dict)
             for section in (model_config, data_config, training_config, output_config)
         )
-        if model_config.get("name") != "edsr_lite":
-            raise InputValidationError("This training entry point currently requires edsr_lite")
+        model_name = model_config.get("name")
+        if model_name not in {"edsr_lite", "naf_sr"}:
+            raise InputValidationError("Training model.name must be edsr_lite or naf_sr")
 
         max_steps = _require_number(training_config, "max_steps", int, 1)
         batch_size = _require_number(training_config, "batch_size", int, 1)
@@ -351,11 +355,10 @@ def main(argv: list[str] | None = None) -> int:
             worker_init_fn=_seed_worker,
         )
 
-        model = EDSRLite(
-            width=int(model_config.get("width", 64)),
-            num_blocks=int(model_config.get("num_blocks", 16)),
-            residual_scale=float(model_config.get("residual_scale", 0.1)),
-        ).to(device)
+        construction_config = {
+            key: value for key, value in model_config.items() if key != "name"
+        }
+        model = create_model(str(model_name), construction_config).to(device)
         loss_function = CharbonnierLoss(epsilon).to(device)
         optimizer = torch.optim.AdamW(
             model.parameters(), lr=learning_rate, weight_decay=weight_decay
@@ -389,7 +392,7 @@ def main(argv: list[str] | None = None) -> int:
         parameter_count = sum(parameter.numel() for parameter in model.parameters())
         initial_val_psnr = _validation_psnr(model, val_loader, device, amp=amp)
         print(
-            f"Training EDSR-lite ({parameter_count:,} parameters) on {device}; "
+            f"Training {model_name} ({parameter_count:,} parameters) on {device}; "
             f"train={len(train_pairs)}, val={len(val_pairs)}, AMP={amp}."
         )
         print(f"Initial validation PSNR: {initial_val_psnr:.4f} dB")
@@ -440,6 +443,8 @@ def main(argv: list[str] | None = None) -> int:
                 val_psnr = _validation_psnr(model, val_loader, device, amp=amp)
                 payload = _checkpoint_payload(
                     model=model,
+                    model_name=str(model_name),
+                    model_config=construction_config,
                     optimizer=optimizer,
                     scheduler=scheduler,
                     step=step,
@@ -453,7 +458,13 @@ def main(argv: list[str] | None = None) -> int:
                 atomic_torch_save(payload, run_dir / "last.pt")
                 if val_psnr > best_val_psnr:
                     best_val_psnr = val_psnr
-                    atomic_torch_save(payload, run_dir / "best.pt")
+                    best_payload = {
+                        key: value
+                        for key, value in payload.items()
+                        if key not in {"optimizer_state_dict", "scheduler_state_dict"}
+                    }
+                    best_payload["checkpoint_role"] = "best_inference"
+                    atomic_torch_save(best_payload, run_dir / "best.pt")
 
             history.append(
                 {
@@ -483,7 +494,7 @@ def main(argv: list[str] | None = None) -> int:
         assert initial_train_loss is not None
         summary = {
             "schema_version": 1,
-            "model": "edsr_lite",
+            "model": model_name,
             "parameter_count": parameter_count,
             "step": step,
             "epoch": epoch,

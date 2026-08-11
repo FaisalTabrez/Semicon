@@ -31,7 +31,7 @@
   Acceptance: Metric preprocessing is fixed and tested; bicubic ID/OOD-ready evidence is reproducible; grayscale LPIPS conversion happens exactly once.
   Verify: Run metric unit tests and `evaluate_metrics.py` on fixtures plus the validation split.
 
-- [ ] **4. Implement and train EDSR-lite**
+- [x] **4. Implement and train EDSR-lite**
   Spec ref: `spec.md > Architecture > Mandatory baselines`
   What to build: EDSR-lite model, Charbonnier loss, checkpoint metadata, configuration, script-first training entry point, and a thin Colab launcher notebook.
   Acceptance: The model overfits eight samples, produces `2H×2W`, reloads in a fresh process, and beats bicubic on mean validation PSNR.

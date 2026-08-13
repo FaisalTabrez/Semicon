@@ -55,7 +55,7 @@
   Acceptance: Splits preserve group integrity and every augmentation/conditioning change has an isolated keep/reject result without test-label leakage.
   Verify: Split invariants, paired-transform tests, and one-variable ablation table.
 
-- [ ] **8. Select and benchmark the final model**
+- [x] **8. Select and benchmark the final model**
   Spec ref: `spec.md > Composite selection` and `spec.md > Performance tests`
   What to build: Composite ranking, fixed visual panel, synchronized Colab GPU latency benchmark, FP16/BF16 parity checks where supported, checkpoint hash, and model card.
   Acceptance: The final checkpoint has an auditable selection reason, measured local latency/VRAM/size, and no unsupported H100 claim.

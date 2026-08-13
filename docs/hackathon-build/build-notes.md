@@ -195,3 +195,12 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - The candidate has `9,111,684` parameters, a `34.8715 MiB` compact checkpoint, `3.8539 GiB` peak allocated T4 memory, and `411.74 ms/step`. Raw weights were again selected over EMA weights.
 - The per-cluster result is mixed: `texture_04`, `texture_05`, and `texture_10` improve, whereas the small hard clusters `texture_01` and `texture_07` regress. The aggregate predeclared gate—not any individual cluster—controls the decision.
 - Evidence is persisted under `/content/drive/MyDrive/Semicon/artifacts/naf_sr_conditioned_d037473`. Checklist item 7 acceptance and verification gates passed; the selected final-model candidate is the conditioned NAF-SR configuration with real pairs plus D4 geometry and no synthetic degradation.
+
+### Checklist item 8 final selection and benchmark gate
+
+- At commit `2776ab8`, `scripts/select_final_model.py` applied the predeclared six-metric competition-rank policy to the unconditioned real-pairs+D4 baseline and the conditioned candidate. Their mean ranks tied, and the required pseudo-OOD tie-break selected `conditioned_naf_sr`.
+- The final checkpoint is SHA-256 `273abd9d6dcfa9bdee71ac15016994962304b6c9d902898b4f4d503bed158c28`, has `9,111,684` parameters, and is `34.8715 MiB`. Final ID/OOD FP32 summaries and the complete selection table are persisted under `/content/drive/MyDrive/Semicon/artifacts/final_selection_2776ab8`.
+- On the measured Tesla T4, synchronized model-only FP32 batch-1 latency is `14.956 ms` median and `17.684 ms` p95 with `0.0688 GiB` peak allocated CUDA memory. This excludes file I/O and checkpoint loading and must not be presented as H100 performance.
+- BF16 parity was supported and changed validation-ID PSNR/SSIM/LPIPS-Alex by `-0.002959 dB / -0.000122 / -0.002014`, which is quality-safe. BF16 median latency was `18.129 ms`, however, `21.21%` slower than FP32; native PyTorch FP32 is therefore frozen as the submission default.
+- Standalone inference produced finite float32 `[0,1]` outputs with the exact dynamic 2× shapes for both `128×128 → 256×256` and `256×256 → 512×512` inputs.
+- The six worst-PSNR pseudo-OOD examples were visually reviewed. They are texture-poor and difficult, but show no obvious checkerboard patterns, ringing, or invented line-like defects; restoration is conservative with some smoothing. Checklist item 8 acceptance and verification gates passed.

@@ -4,7 +4,7 @@ Reproducible grayscale image restoration for the SEMICON India Hackathon 2026 pr
 
 ## Current status
 
-The repository contains the compliance-first inference path, deterministic paired-data audit, locked labeled-metric tooling, the verified EDSR-lite baseline, and the unconditioned NAF-SR primary model. Bicubic remains only a runnable lower bound. NAF-SR GPU calibration and comparison are now in progress.
+The final candidate is a statistics-conditioned NAF-SR trained on real pairs with paired D4 geometry. It is selected by the declared validation-ID/pseudo-OOD rank policy. Native PyTorch FP32 is the default: it is faster than BF16 on the measured Tesla T4 runtime.
 
 ## Supported data
 
@@ -32,16 +32,33 @@ Run directory-to-directory restoration:
 python evaluation.py C:\path\to\NoisyLR C:\path\to\restored_outputs
 ```
 
-The command is intentionally independent of the current working directory. Until learned weights are added, it uses bicubic interpolation and prints a concise count/device/latency summary.
+The command is intentionally independent of the current working directory and loads `weights/model.pt` by default. It prints a concise count/device/latency summary.
 
 Useful options:
 
 ```powershell
 python evaluation.py INPUT_DIR OUTPUT_DIR --batch-size 8 --report-json C:\path\to\run.json
 python evaluation.py INPUT_DIR OUTPUT_DIR --overwrite
+python evaluation.py INPUT_DIR OUTPUT_DIR --model bicubic
 ```
 
 `--overwrite` only permits replacing outputs that correspond to discovered inputs; it never deletes the output directory.
+
+## Generate and verify the 400 public-test outputs
+
+After extracting the organizer public test archive, generate the required outputs with the frozen final checkpoint:
+
+```powershell
+python scripts/generate_test_outputs.py `
+  C:\path\to\test\NoisyLR `
+  restored_test_outputs `
+  --device cuda
+
+python scripts/verify_submission.py `
+  --input-dir C:\path\to\test\NoisyLR
+```
+
+The verifier requires exactly 400 matching float32 outputs with 2× spatial dimensions, finite `[0,1]` values, and a checkpoint matching `weights/model.sha256`.
 
 ## Tests
 

@@ -9,6 +9,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 SRC_ROOT = PROJECT_ROOT / "src"
+DEFAULT_WEIGHTS = PROJECT_ROOT / "weights" / "model.pt"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
@@ -27,13 +28,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         choices=("bicubic", "edsr_lite", "naf_sr"),
-        default="bicubic",
-        help="Restoration model (bicubic is the current lower-bound baseline)",
+        default="naf_sr",
+        help="Restoration model (default: frozen final NAF-SR checkpoint)",
     )
     parser.add_argument(
         "--weights",
         type=Path,
-        help="Self-describing .pt checkpoint required by learned models",
+        help="Self-describing .pt checkpoint; defaults to weights/model.pt for learned models",
     )
     parser.add_argument(
         "--device", choices=("auto", "cpu", "cuda"), default="auto", help="Inference device"
@@ -70,14 +71,13 @@ def main(argv: list[str] | None = None) -> int:
                 raise InputValidationError("--weights cannot be used with the bicubic model")
             model = BicubicRestorer()
         else:
-            if args.weights is None:
-                raise InputValidationError(f"--weights is required for model {args.model}")
-            model, payload = load_model_checkpoint(args.weights)
+            weights = args.weights or DEFAULT_WEIGHTS
+            model, payload = load_model_checkpoint(weights)
             if payload["model_name"] != args.model:
                 raise InputValidationError(
                     f"Checkpoint model is {payload['model_name']}, not requested {args.model}"
                 )
-            checkpoint_text = str(args.weights.expanduser().resolve())
+            checkpoint_text = str(weights.expanduser().resolve())
         summary = restore_directory(
             model,
             args.input_dir,

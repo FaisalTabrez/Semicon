@@ -29,6 +29,8 @@ def test_cli_runs_from_foreign_working_directory_and_protects_outputs(tmp_path: 
         str(EVALUATION_SCRIPT),
         str(input_dir),
         str(output_dir),
+        "--model",
+        "bicubic",
         "--report-json",
         str(report),
     ]

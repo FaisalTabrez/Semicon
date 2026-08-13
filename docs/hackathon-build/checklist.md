@@ -49,7 +49,7 @@
   Acceptance: A repeated deterministic debug run matches within documented tolerance and every run records config, split hash, environment, and metrics.
   Verify: Run deterministic CPU debug training twice and compare artifacts; run a 200-step timing/memory calibration in the selected Colab GPU runtime.
 
-- [ ] **7. Add OOD split and controlled robustness ablations**
+- [x] **7. Add OOD split and controlled robustness ablations**
   Spec ref: `spec.md > Data design > Split construction` and `spec.md > Phase C — OOD fine-tuning`
   What to build: Texture descriptors/clusters, grouped ID/OOD manifest assignment, D4 transforms, fitted synthetic degradation, and optional statistics conditioning.
   Acceptance: Splits preserve group integrity and every augmentation/conditioning change has an isolated keep/reject result without test-label leakage.

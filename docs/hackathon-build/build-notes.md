@@ -186,3 +186,12 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - The candidate slightly improved the hardest small clusters (`texture_01` by about `+0.104 dB` and `texture_07` by about `+0.044 dB`) but regressed the larger held-out groups, so the aggregate rejection is retained rather than selecting on anecdotes.
 - T4 training took `2005.25 s`, averaged `401.05 ms/step`, peaked at `3.7100 GiB`, and again selected raw rather than EMA weights. Evidence is persisted under `/content/drive/MyDrive/Semicon/artifacts/naf_sr_synthetic15_654d98f`.
 - Decision: **reject** `synthetic_probability=0.15`. The final isolated robustness experiment adds only `[mean,std,min,max]` statistics conditioning to the real-pairs+D4 baseline.
+
+### Checklist item 7 statistics-conditioning ablation and final decision
+
+- At commit `d037473`, the statistics-conditioned NAF-SR candidate was trained for the same 5,000-step budget with `synthetic_probability=0.0`; the compact checkpoint SHA-256 is `273abd9d6dcfa9bdee71ac15016994962304b6c9d902898b4f4d503bed158c28`.
+- Validation-ID PSNR/SSIM/LPIPS-Alex is `29.226240 / 0.776572 / 0.271442`, changing by `-0.002048 dB / +0.000082 / +0.000559` from the unconditioned baseline. The ID PSNR and SSIM changes remain inside the declared safety floors.
+- Pseudo-OOD PSNR/SSIM/LPIPS-Alex is `25.251257 / 0.666073 / 0.353080`, changing by `+0.007105 dB / +0.001521 / +0.000719`. It improves two of three locked OOD metrics, so the predeclared gate keeps conditioning.
+- The candidate has `9,111,684` parameters, a `34.8715 MiB` compact checkpoint, `3.8539 GiB` peak allocated T4 memory, and `411.74 ms/step`. Raw weights were again selected over EMA weights.
+- The per-cluster result is mixed: `texture_04`, `texture_05`, and `texture_10` improve, whereas the small hard clusters `texture_01` and `texture_07` regress. The aggregate predeclared gate—not any individual cluster—controls the decision.
+- Evidence is persisted under `/content/drive/MyDrive/Semicon/artifacts/naf_sr_conditioned_d037473`. Checklist item 7 acceptance and verification gates passed; the selected final-model candidate is the conditioned NAF-SR configuration with real pairs plus D4 geometry and no synthetic degradation.

@@ -12,6 +12,7 @@ import os
 import sys
 import time
 from collections import Counter
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Iterable
 
@@ -30,7 +31,7 @@ from semirestore.data import (  # noqa: E402
     load_npy_image,
 )
 from semirestore.checkpoints import load_model_checkpoint  # noqa: E402
-from semirestore.inference import resolve_device  # noqa: E402
+from semirestore.inference import resolve_device, resolve_precision  # noqa: E402
 from semirestore.metrics import (  # noqa: E402
     LPIPS_POLICY,
     SSIM_POLICY,
@@ -64,6 +65,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--weights", type=Path, help="Checkpoint required by learned models")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    parser.add_argument(
+        "--precision",
+        choices=("fp32", "bf16"),
+        default="fp32",
+        help="Inference precision for a measured parity experiment; default is FP32",
+    )
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument(
         "--manifest",
@@ -218,6 +225,7 @@ def _summary_payload(
     rows: list[dict[str, str]],
     *,
     device: torch.device,
+    precision: str,
     elapsed_seconds: float,
     manifest_sha256: str | None,
     lpips_enabled: bool,
@@ -245,6 +253,7 @@ def _summary_payload(
         ),
         "checkpoint_sha256": checkpoint_sha256,
         "device": str(device),
+        "precision": precision,
         "pair_count": len(rows),
         "split_counts": dict(sorted(Counter(row["split"] for row in rows).items())),
         "manifest_sha256": manifest_sha256,
@@ -342,6 +351,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         device = resolve_device(args.device)
+        precision = resolve_precision(args.precision, device)
         checkpoint_sha256 = None
         if args.model == "bicubic":
             if args.weights is not None:
@@ -374,7 +384,13 @@ def main(argv: list[str] | None = None) -> int:
                         "Mixed shapes occurred inside a metric batch; reduce --batch-size to 1"
                     )
                 input_tensor = torch.from_numpy(np.stack(input_arrays))[:, None].to(device)
-                prediction_tensor = model(input_tensor)
+                autocast_context = (
+                    torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+                    if precision == "bf16"
+                    else nullcontext()
+                )
+                with autocast_context:
+                    prediction_tensor = model(input_tensor)
                 expected_target_shape = tuple(prediction_tensor.shape[-2:])
                 if any(array.shape != expected_target_shape for array in target_arrays):
                     raise InputValidationError(
@@ -441,6 +457,7 @@ def main(argv: list[str] | None = None) -> int:
         summary = _summary_payload(
             rows,
             device=device,
+            precision=precision,
             elapsed_seconds=elapsed,
             manifest_sha256=manifest_sha256,
             lpips_enabled=not args.no_lpips,

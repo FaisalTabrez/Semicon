@@ -1,0 +1,57 @@
+{
+  "checkpoint": "/content/drive/MyDrive/Semicon/artifacts/naf_sr_conditioned_d037473/best.pt",
+  "checkpoint_bytes": 36565383,
+  "checkpoint_sha256": "273abd9d6dcfa9bdee71ac15016994962304b6c9d902898b4f4d503bed158c28",
+  "device": "cuda",
+  "environment": {
+    "cuda": "12.8",
+    "cudnn": 91900,
+    "python": "3.12.13",
+    "torch": "2.11.0+cu128"
+  },
+  "gpu_name": "Tesla T4",
+  "images_per_second": 83.66347375827611,
+  "input_shape": [
+    16,
+    1,
+    128,
+    128
+  ],
+  "latency_ms": {
+    "mean": 190.98127138000564,
+    "median": 191.24235799995404,
+    "p90": 193.7150640001164,
+    "p95": 194.36956900017321
+  },
+  "model": "naf_sr",
+  "model_config": {
+    "conditioning_hidden": 64,
+    "decoder_blocks": [
+      2,
+      2,
+      2
+    ],
+    "dropout": 0.0,
+    "encoder_blocks": [
+      2,
+      2,
+      4
+    ],
+    "middle_blocks": 6,
+    "statistics_conditioning": true,
+    "width": 48
+  },
+  "output_shape": [
+    16,
+    1,
+    256,
+    256
+  ],
+  "parameter_count": 9111684,
+  "peak_cuda_memory_bytes": 491932160,
+  "precision": "fp32",
+  "schema_version": 1,
+  "scope": "model-only synthetic-tensor inference; excludes file I/O and checkpoint loading",
+  "timed_iterations": 100,
+  "warmup_iterations": 20
+}

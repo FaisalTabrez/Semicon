@@ -1,0 +1,77 @@
+{
+  "candidates": [
+    {
+      "checkpoint_sha256": "273abd9d6dcfa9bdee71ac15016994962304b6c9d902898b4f4d503bed158c28",
+      "id": {
+        "lpips_alex": 0.2714418435856459,
+        "psnr_db": 29.226240489125,
+        "ssim": 0.7765724780562501
+      },
+      "id_mean_rank": 1.6666666666666667,
+      "id_summary": "/content/drive/MyDrive/Semicon/artifacts/naf_sr_conditioned_d037473/validation_id_summary.json",
+      "mean_rank": 1.5,
+      "name": "conditioned_naf_sr",
+      "ood": {
+        "lpips_alex": 0.35307973583929503,
+        "psnr_db": 25.251256508274583,
+        "ssim": 0.6660728102397031
+      },
+      "ood_mean_rank": 1.3333333333333333,
+      "ood_summary": "/content/drive/MyDrive/Semicon/artifacts/naf_sr_conditioned_d037473/validation_ood_summary.json",
+      "ranks": {
+        "id_lpips_alex": 2,
+        "id_psnr_db": 2,
+        "id_ssim": 1,
+        "ood_lpips_alex": 2,
+        "ood_psnr_db": 1,
+        "ood_ssim": 1
+      },
+      "selection_order": 1
+    },
+    {
+      "checkpoint_sha256": "884b1d9c61d0b4da99416cfe68c05559c3b468fe4d560decf439ff78b4803798",
+      "id": {
+        "lpips_alex": 0.2708827439618125,
+        "psnr_db": 29.228288645604167,
+        "ssim": 0.7764908591691666
+      },
+      "id_mean_rank": 1.3333333333333333,
+      "id_summary": "/content/drive/MyDrive/Semicon/artifacts/naf_sr_ood_baseline_a39cec0/validation_id_summary.json",
+      "mean_rank": 1.5,
+      "name": "real_pairs_d4_baseline",
+      "ood": {
+        "lpips_alex": 0.35236031924684597,
+        "psnr_db": 25.244151621725415,
+        "ssim": 0.6645521163430427
+      },
+      "ood_mean_rank": 1.6666666666666667,
+      "ood_summary": "/content/drive/MyDrive/Semicon/artifacts/naf_sr_ood_baseline_a39cec0/validation_ood_summary.json",
+      "ranks": {
+        "id_lpips_alex": 1,
+        "id_psnr_db": 1,
+        "id_ssim": 2,
+        "ood_lpips_alex": 1,
+        "ood_psnr_db": 2,
+        "ood_ssim": 2
+      },
+      "selection_order": 2
+    }
+  ],
+  "manifest_sha256": "5c95b6353112e1d1ffe87f091c47af4528aff139b09fe40de9b1ffb2f030afae",
+  "policy": {
+    "aggregation": "mean of six competition ranks",
+    "metrics": {
+      "lpips_alex": "lower",
+      "psnr_db": "higher",
+      "ssim": "higher"
+    },
+    "splits": [
+      "val_id",
+      "val_ood"
+    ],
+    "tie_break": "lower val_ood mean rank, then lower val_id mean rank, then name"
+  },
+  "schema_version": 1,
+  "winner": "conditioned_naf_sr",
+  "winner_checkpoint_sha256": "273abd9d6dcfa9bdee71ac15016994962304b6c9d902898b4f4d503bed158c28"
+}

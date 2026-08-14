@@ -1,0 +1,620 @@
+{
+  "aggregates": {
+    "all": {
+      "count": 539,
+      "lpips_alex": {
+        "bootstrap_95_ci": [
+          0.3343701778426396,
+          0.3737934298253799
+        ],
+        "finite_count": 539,
+        "mean": 0.35307973583929503,
+        "median": 0.2882595062,
+        "non_finite_or_missing_count": 0
+      },
+      "mean_intensity_bias": {
+        "bootstrap_95_ci": [
+          0.001972540654398919,
+          0.0022876598716653003
+        ],
+        "finite_count": 539,
+        "mean": 0.0021256219374367257,
+        "median": 0.001561999321,
+        "non_finite_or_missing_count": 0
+      },
+      "pre_clamp_out_of_range_rate": {
+        "bootstrap_95_ci": [
+          0.0016947270323763044,
+          0.003146260390716241
+        ],
+        "finite_count": 539,
+        "mean": 0.0023753886320254177,
+        "median": 9.155273438e-05,
+        "non_finite_or_missing_count": 0
+      },
+      "psnr_db": {
+        "bootstrap_95_ci": [
+          24.7173745584244,
+          25.799861701362712
+        ],
+        "finite_count": 539,
+        "mean": 25.251256508274583,
+        "median": 23.67165493,
+        "non_finite_or_missing_count": 0
+      },
+      "sobel_l1": {
+        "bootstrap_95_ci": [
+          0.196233212449013,
+          0.21961224545630476
+        ],
+        "finite_count": 539,
+        "mean": 0.20792316486283857,
+        "median": 0.2078964561,
+        "non_finite_or_missing_count": 0
+      },
+      "ssim": {
+        "bootstrap_95_ci": [
+          0.6474523673437291,
+          0.6865429832848098
+        ],
+        "finite_count": 539,
+        "mean": 0.6660728102397031,
+        "median": 0.7068550933,
+        "non_finite_or_missing_count": 0
+      }
+    },
+    "by_split": {
+      "val_ood": {
+        "count": 539,
+        "lpips_alex": {
+          "bootstrap_95_ci": [
+            0.33456401847725364,
+            0.37393819776463777
+          ],
+          "finite_count": 539,
+          "mean": 0.35307973583929503,
+          "median": 0.2882595062,
+          "non_finite_or_missing_count": 0
+        },
+        "mean_intensity_bias": {
+          "bootstrap_95_ci": [
+            0.0019610245915072408,
+            0.002279960402382064
+          ],
+          "finite_count": 539,
+          "mean": 0.0021256219374367257,
+          "median": 0.001561999321,
+          "non_finite_or_missing_count": 0
+        },
+        "pre_clamp_out_of_range_rate": {
+          "bootstrap_95_ci": [
+            0.0016879695686737107,
+            0.0031534049860843104
+          ],
+          "finite_count": 539,
+          "mean": 0.0023753886320254177,
+          "median": 9.155273438e-05,
+          "non_finite_or_missing_count": 0
+        },
+        "psnr_db": {
+          "bootstrap_95_ci": [
+            24.75719830163683,
+            25.763602714816326
+          ],
+          "finite_count": 539,
+          "mean": 25.251256508274583,
+          "median": 23.67165493,
+          "non_finite_or_missing_count": 0
+        },
+        "sobel_l1": {
+          "bootstrap_95_ci": [
+            0.19622562812056032,
+            0.21970380220821797
+          ],
+          "finite_count": 539,
+          "mean": 0.20792316486283857,
+          "median": 0.2078964561,
+          "non_finite_or_missing_count": 0
+        },
+        "ssim": {
+          "bootstrap_95_ci": [
+            0.6468687443684091,
+            0.6881189444946939
+          ],
+          "finite_count": 539,
+          "mean": 0.6660728102397031,
+          "median": 0.7068550933,
+          "non_finite_or_missing_count": 0
+        }
+      }
+    },
+    "by_texture_cluster": {
+      "texture_01": {
+        "count": 19,
+        "lpips_alex": {
+          "bootstrap_95_ci": [
+            0.8977426157260525,
+            0.9075449568139474
+          ],
+          "finite_count": 19,
+          "mean": 0.9026053736315789,
+          "median": 0.9035675526,
+          "non_finite_or_missing_count": 0
+        },
+        "mean_intensity_bias": {
+          "bootstrap_95_ci": [
+            0.007388010503330264,
+            0.008554003936680264
+          ],
+          "finite_count": 19,
+          "mean": 0.007988804265052633,
+          "median": 0.007962584496,
+          "non_finite_or_missing_count": 0
+        },
+        "pre_clamp_out_of_range_rate": {
+          "bootstrap_95_ci": [
+            0.0022260364732592107,
+            0.0025787353517381585
+          ],
+          "finite_count": 19,
+          "mean": 0.0023988422594736847,
+          "median": 0.002319335938,
+          "non_finite_or_missing_count": 0
+        },
+        "psnr_db": {
+          "bootstrap_95_ci": [
+            10.709268975592105,
+            10.755900416223685
+          ],
+          "finite_count": 19,
+          "mean": 10.731755674736842,
+          "median": 10.74208659,
+          "non_finite_or_missing_count": 0
+        },
+        "sobel_l1": {
+          "bootstrap_95_ci": [
+            0.6141145316438158,
+            0.6174897272377631
+          ],
+          "finite_count": 19,
+          "mean": 0.6158664226578947,
+          "median": 0.6162258983,
+          "non_finite_or_missing_count": 0
+        },
+        "ssim": {
+          "bootstrap_95_ci": [
+            0.26400350361421054,
+            0.2679100992468421
+          ],
+          "finite_count": 19,
+          "mean": 0.2659002103421053,
+          "median": 0.2656798515,
+          "non_finite_or_missing_count": 0
+        }
+      },
+      "texture_02": {
+        "count": 38,
+        "lpips_alex": {
+          "bootstrap_95_ci": [
+            0.6584036828262501,
+            0.7552191709890131
+          ],
+          "finite_count": 38,
+          "mean": 0.7104367198078948,
+          "median": 0.7627008855,
+          "non_finite_or_missing_count": 0
+        },
+        "mean_intensity_bias": {
+          "bootstrap_95_ci": [
+            0.0013541622968702364,
+            0.0023120950123297766
+          ],
+          "finite_count": 38,
+          "mean": 0.0017931331928928947,
+          "median": 0.0013048648835,
+          "non_finite_or_missing_count": 0
+        },
+        "pre_clamp_out_of_range_rate": {
+          "bootstrap_95_ci": [
+            3.613923725256579e-06,
+            3.8950066816059214e-05
+          ],
+          "finite_count": 38,
+          "mean": 1.686497738421053e-05,
+          "median": 0.0,
+          "non_finite_or_missing_count": 0
+        },
+        "psnr_db": {
+          "bootstrap_95_ci": [
+            21.241084215328947,
+            23.20554283061842
+          ],
+          "finite_count": 38,
+          "mean": 22.179435476052628,
+          "median": 21.500264389999998,
+          "non_finite_or_missing_count": 0
+        },
+        "sobel_l1": {
+          "bootstrap_95_ci": [
+            0.2513723443180789,
+            0.3057212203361316
+          ],
+          "finite_count": 38,
+          "mean": 0.28105438755578943,
+          "median": 0.28246442974999997,
+          "non_finite_or_missing_count": 0
+        },
+        "ssim": {
+          "bootstrap_95_ci": [
+            0.28458554673611847,
+            0.39070664068243427
+          ],
+          "finite_count": 38,
+          "mean": 0.3333161133315789,
+          "median": 0.26642229045,
+          "non_finite_or_missing_count": 0
+        }
+      },
+      "texture_04": {
+        "count": 182,
+        "lpips_alex": {
+          "bootstrap_95_ci": [
+            0.19600389746552752,
+            0.2397854597133668
+          ],
+          "finite_count": 182,
+          "mean": 0.21909868764384613,
+          "median": 0.2047161907,
+          "non_finite_or_missing_count": 0
+        },
+        "mean_intensity_bias": {
+          "bootstrap_95_ci": [
+            0.0009181479503579387,
+            0.0012227506509285002
+          ],
+          "finite_count": 182,
+          "mean": 0.0010671746599594783,
+          "median": 0.00086718797685,
+          "non_finite_or_missing_count": 0
+        },
+        "pre_clamp_out_of_range_rate": {
+          "bootstrap_95_ci": [
+            0.0012726878071435245,
+            0.005044014899248998
+          ],
+          "finite_count": 182,
+          "mean": 0.002906044760981099,
+          "median": 9.155273438e-05,
+          "non_finite_or_missing_count": 0
+        },
+        "psnr_db": {
+          "bootstrap_95_ci": [
+            31.42039861943544,
+            32.592607316125005
+          ],
+          "finite_count": 182,
+          "mean": 32.00507470714286,
+          "median": 31.28042438,
+          "non_finite_or_missing_count": 0
+        },
+        "sobel_l1": {
+          "bootstrap_95_ci": [
+            0.05861819714603021,
+            0.07140807817018956
+          ],
+          "finite_count": 182,
+          "mean": 0.06473238716450548,
+          "median": 0.055478937925,
+          "non_finite_or_missing_count": 0
+        },
+        "ssim": {
+          "bootstrap_95_ci": [
+            0.839174960419217,
+            0.8726412407226785
+          ],
+          "finite_count": 182,
+          "mean": 0.8563072105219782,
+          "median": 0.9045618706,
+          "non_finite_or_missing_count": 0
+        }
+      },
+      "texture_05": {
+        "count": 138,
+        "lpips_alex": {
+          "bootstrap_95_ci": [
+            0.3733948217425344,
+            0.43954276028490397
+          ],
+          "finite_count": 138,
+          "mean": 0.40439351750318847,
+          "median": 0.3483814448,
+          "non_finite_or_missing_count": 0
+        },
+        "mean_intensity_bias": {
+          "bootstrap_95_ci": [
+            0.0017066700494964182,
+            0.002108711110555676
+          ],
+          "finite_count": 138,
+          "mean": 0.0019107192511799275,
+          "median": 0.001693814993,
+          "non_finite_or_missing_count": 0
+        },
+        "pre_clamp_out_of_range_rate": {
+          "bootstrap_95_ci": [
+            0.00034559222233771197,
+            0.0010661304860221936
+          ],
+          "finite_count": 138,
+          "mean": 0.0006660793138334057,
+          "median": 1.525878906e-05,
+          "non_finite_or_missing_count": 0
+        },
+        "psnr_db": {
+          "bootstrap_95_ci": [
+            24.36788214496739,
+            25.28578630787862
+          ],
+          "finite_count": 138,
+          "mean": 24.835497257971014,
+          "median": 24.093496299999998,
+          "non_finite_or_missing_count": 0
+        },
+        "sobel_l1": {
+          "bootstrap_95_ci": [
+            0.1844386236567971,
+            0.2071809755349076
+          ],
+          "finite_count": 138,
+          "mean": 0.19566942454130434,
+          "median": 0.19932098685,
+          "non_finite_or_missing_count": 0
+        },
+        "ssim": {
+          "bootstrap_95_ci": [
+            0.5458204489280978,
+            0.6117984353836776
+          ],
+          "finite_count": 138,
+          "mean": 0.5786621386115942,
+          "median": 0.60558495895,
+          "non_finite_or_missing_count": 0
+        }
+      },
+      "texture_07": {
+        "count": 18,
+        "lpips_alex": {
+          "bootstrap_95_ci": [
+            0.6584226896087501,
+            0.8135202331016665
+          ],
+          "finite_count": 18,
+          "mean": 0.740370911038889,
+          "median": 0.82418075205,
+          "non_finite_or_missing_count": 0
+        },
+        "mean_intensity_bias": {
+          "bootstrap_95_ci": [
+            0.0020478803458066665,
+            0.0039195674212344446
+          ],
+          "finite_count": 18,
+          "mean": 0.002923529388177778,
+          "median": 0.0021715536715000002,
+          "non_finite_or_missing_count": 0
+        },
+        "pre_clamp_out_of_range_rate": {
+          "bootstrap_95_ci": [
+            0.0006466547647505277,
+            0.0019126468233198748
+          ],
+          "finite_count": 18,
+          "mean": 0.0012664794921055558,
+          "median": 9.1552734355e-05,
+          "non_finite_or_missing_count": 0
+        },
+        "psnr_db": {
+          "bootstrap_95_ci": [
+            17.878781943916664,
+            22.53067092620833
+          ],
+          "finite_count": 18,
+          "mean": 20.03632056611111,
+          "median": 18.30338649,
+          "non_finite_or_missing_count": 0
+        },
+        "sobel_l1": {
+          "bootstrap_95_ci": [
+            0.23434209670062497,
+            0.33448596785341667
+          ],
+          "finite_count": 18,
+          "mean": 0.28768798461166667,
+          "median": 0.32850624625,
+          "non_finite_or_missing_count": 0
+        },
+        "ssim": {
+          "bootstrap_95_ci": [
+            0.27869419825638886,
+            0.3773372554644444
+          ],
+          "finite_count": 18,
+          "mean": 0.32423174062777776,
+          "median": 0.28542668455,
+          "non_finite_or_missing_count": 0
+        }
+      },
+      "texture_10": {
+        "count": 144,
+        "lpips_alex": {
+          "bootstrap_95_ci": [
+            0.24266086477230206,
+            0.274689262214441
+          ],
+          "finite_count": 144,
+          "mean": 0.25802039722472225,
+          "median": 0.2439709455,
+          "non_finite_or_missing_count": 0
+        },
+        "mean_intensity_bias": {
+          "bootstrap_95_ci": [
+            0.002618262257084035,
+            0.003150979941711257
+          ],
+          "finite_count": 144,
+          "mean": 0.002883717417707014,
+          "median": 0.00291249156,
+          "non_finite_or_missing_count": 0
+        },
+        "pre_clamp_out_of_range_rate": {
+          "bootstrap_95_ci": [
+            0.002882817056426668,
+            0.005564861827392413
+          ],
+          "finite_count": 144,
+          "mean": 0.0041006935967057645,
+          "median": 0.000732421875,
+          "non_finite_or_missing_count": 0
+        },
+        "psnr_db": {
+          "bootstrap_95_ci": [
+            20.271460274954862,
+            20.69553252954861
+          ],
+          "finite_count": 144,
+          "mean": 20.49187058027778,
+          "median": 20.698584265,
+          "non_finite_or_missing_count": 0
+        },
+        "sobel_l1": {
+          "bootstrap_95_ci": [
+            0.3084223673163195,
+            0.3267591283713194
+          ],
+          "finite_count": 144,
+          "mean": 0.3175485995125,
+          "median": 0.30664846300000004,
+          "non_finite_or_missing_count": 0
+        },
+        "ssim": {
+          "bootstrap_95_ci": [
+            0.6756098153769965,
+            0.709725729310434
+          ],
+          "finite_count": 144,
+          "mean": 0.6927477058430556,
+          "median": 0.7119124757999999,
+          "non_finite_or_missing_count": 0
+        }
+      }
+    },
+    "worst_psnr_decile": {
+      "count": 54,
+      "lpips_alex": {
+        "bootstrap_95_ci": [
+          0.5643888186360648,
+          0.7086787031201853
+        ],
+        "finite_count": 54,
+        "mean": 0.6380757650925925,
+        "median": 0.83181723955,
+        "non_finite_or_missing_count": 0
+      },
+      "mean_intensity_bias": {
+        "bootstrap_95_ci": [
+          0.004476908621971435,
+          0.005867132420327777
+        ],
+        "finite_count": 54,
+        "mean": 0.005180646975796296,
+        "median": 0.0050995349885,
+        "non_finite_or_missing_count": 0
+      },
+      "pre_clamp_out_of_range_rate": {
+        "bootstrap_95_ci": [
+          0.002845742967347579,
+          0.008657201130723694
+        ],
+        "finite_count": 54,
+        "mean": 0.005383526837169815,
+        "median": 0.0023498535160000004,
+        "non_finite_or_missing_count": 0
+      },
+      "psnr_db": {
+        "bootstrap_95_ci": [
+          14.300350545814814,
+          16.188013532291667
+        ],
+        "finite_count": 54,
+        "mean": 15.250726263888886,
+        "median": 17.3244422,
+        "non_finite_or_missing_count": 0
+      },
+      "sobel_l1": {
+        "bootstrap_95_ci": [
+          0.43102539060212963,
+          0.4963599406297222
+        ],
+        "finite_count": 54,
+        "mean": 0.46353424368888896,
+        "median": 0.41558878125,
+        "non_finite_or_missing_count": 0
+      },
+      "ssim": {
+        "bootstrap_95_ci": [
+          0.3771054165462963,
+          0.4738900421105093
+        ],
+        "finite_count": 54,
+        "mean": 0.4234766125333333,
+        "median": 0.2890010585,
+        "non_finite_or_missing_count": 0
+      }
+    }
+  },
+  "checkpoint_sha256": "273abd9d6dcfa9bdee71ac15016994962304b6c9d902898b4f4d503bed158c28",
+  "device": "cuda",
+  "elapsed_seconds": 13.569724297999983,
+  "evidence_label": "labeled naf_sr checkpoint evaluation",
+  "failure_counts": {
+    "non_finite": 0,
+    "shape": 0
+  },
+  "manifest_sha256": "5c95b6353112e1d1ffe87f091c47af4528aff139b09fe40de9b1ffb2f030afae",
+  "mean_milliseconds_per_image": 25.175740812615924,
+  "metric_policy": {
+    "bootstrap": {
+      "confidence": 0.95,
+      "samples": 1000,
+      "seed": 2026
+    },
+    "lpips": {
+      "enabled": true,
+      "grayscale_to_rgb": "repeat channel exactly once",
+      "implementation": "lpips.LPIPS",
+      "input_mapping": "clamp [0,1], then x * 2 - 1 exactly once",
+      "net": "alex",
+      "normalize_argument": false
+    },
+    "prediction_scoring_boundary": "clamp to [0,1]",
+    "psnr": {
+      "data_range": 1.0
+    },
+    "ssim": {
+      "data_range": 1.0,
+      "gaussian_weights": true,
+      "implementation": "skimage.metrics.structural_similarity",
+      "sigma": 1.5,
+      "use_sample_covariance": false,
+      "win_size": 11
+    },
+    "target_scoring_boundary": "clamp to [0,1]"
+  },
+  "model": "naf_sr",
+  "pair_count": 539,
+  "precision": "fp32",
+  "schema_version": 1,
+  "split_counts": {
+    "val_ood": 539
+  }
+}

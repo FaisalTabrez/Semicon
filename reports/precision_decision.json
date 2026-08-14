@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fp32_median_ms": 14.956473999973241,
+  "bf16_median_ms": 18.128767999996853,
+  "bf16_speedup_percent": -21.210172932666403,
+  "quality_safe": true,
+  "materially_faster": false,
+  "default_precision": "fp32",
+  "reason": "FP32 retained: BF16 did not satisfy both quality and 10% speed requirements."
+}

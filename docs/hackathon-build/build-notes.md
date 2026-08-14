@@ -204,3 +204,12 @@ The available hackathon workflow skill is designed for Devpost and requires Devp
 - BF16 parity was supported and changed validation-ID PSNR/SSIM/LPIPS-Alex by `-0.002959 dB / -0.000122 / -0.002014`, which is quality-safe. BF16 median latency was `18.129 ms`, however, `21.21%` slower than FP32; native PyTorch FP32 is therefore frozen as the submission default.
 - Standalone inference produced finite float32 `[0,1]` outputs with the exact dynamic 2× shapes for both `128×128 → 256×256` and `256×256 → 512×512` inputs.
 - The six worst-PSNR pseudo-OOD examples were visually reviewed. They are texture-poor and difficult, but show no obvious checkerboard patterns, ringing, or invented line-like defects; restoration is conservative with some smoothing. Checklist item 8 acceptance and verification gates passed.
+
+### Checklist item 9 public repository and test-output gate
+
+- Commit `e58ef36` packages the exact selected checkpoint, its SHA-256, the evidence-grounded model card, benchmark/selection reports, the fixed worst-OOD panel, and all 400 restored public-test arrays in the public repository.
+- `scripts/generate_test_outputs.py` produced 400 outputs totaling `100.05 MiB`; `scripts/verify_submission.py` verified exact relative stems, float32 dtype, `256×256` shape, finite `[0,1]` values, and checkpoint integrity against SHA-256 `273abd9d6dcfa9bdee71ac15016994962304b6c9d902898b4f4d503bed158c28`.
+- A new unauthenticated clone from GitHub passed the same 400-file verifier. From a foreign working directory, the no-edit default `evaluation.py INPUT_DIR OUTPUT_DIR --device cuda` command loaded `weights/model.pt` and restored a public test input successfully.
+- The raw public `weights/model.sha256` URL resolves without credentials. GitHub Actions CI run `#2` for `e58ef36` completed successfully in `2m23s`; all local tests had previously passed (`46 passed`).
+- `requirements.txt` remains the pinned clean CPU/CI environment. `requirements-colab.txt` and `reports/benchmark_fp32_batch1.json` separately record the measured GPU evidence runtime: Python `3.12.13`, PyTorch `2.11.0+cu128`, CUDA `12.8`, cuDNN `91900`, Tesla T4.
+- Checklist item 9 acceptance and verification gates passed. The only remaining original-workflow item is the I4C submission evidence handoff.

@@ -26,6 +26,8 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
+`requirements.txt` is the clean CPU/CI environment. GPU training and benchmark evidence used the Colab-provided CUDA runtime recorded in `requirements-colab.txt` and `reports/benchmark_fp32_batch1.json`; the measured core was Python 3.12.13, PyTorch 2.11.0+cu128, CUDA 12.8, cuDNN 91900, on a Tesla T4.
+
 Run directory-to-directory restoration:
 
 ```powershell

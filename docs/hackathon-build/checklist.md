@@ -61,7 +61,7 @@
   Acceptance: The final checkpoint has an auditable selection reason, measured local latency/VRAM/size, and no unsupported H100 claim.
   Verify: Run `scripts/benchmark.py`, validate the model card values, and inspect worst-decile panels.
 
-- [ ] **9. Harden the public repository and generate test outputs**
+- [x] **9. Harden the public repository and generate test outputs**
   Spec ref: `spec.md > Repository structure` and `spec.md > Verification plan`
   What to build: Final frozen Colab training environment, CPU clean-clone verifier, CI smoke test, complete README, downloadable weights, and restored public test outputs.
   Acceptance: A clean environment runs the documented command without edits; 400 outputs have matching stems, float32 dtype, `256×256` shape, finite `[0,1]` values, and no missing files.

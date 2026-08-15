@@ -57,3 +57,27 @@ downsample-only control shows that it should not replace bicubic interpolation
 for already-clean inputs. This limitation remains visible in the evidence and
 Carinthia will not be reused to tune a clean/noisy router while retaining the
 claim that this run was a cold external test.
+
+## Best/worst visual audit
+
+The pre-registered panel selected the minimum and maximum paired PSNR delta
+within each severity. No obvious checkerboard pattern, invented periodic line,
+or strong edge ringing was observed. Macro-scale defect locations, silhouettes,
+and high-contrast boundaries remained recognizable in the noisy conditions.
+
+The audit also exposes systematic over-smoothing. On downsample-only inputs the
+model suppresses genuine background texture and broadens local contrast around
+defects, consistent with the negative PSNR/SSIM/LPIPS result. Fine surface
+striations are also attenuated in the worst profile-low and profile-high cases,
+even though their macro morphology and all three aggregate metrics improve.
+Accordingly:
+
+- downsample-only visual gate: **fail**;
+- profile-low/profile-high macro-morphology gate: **conditional pass**;
+- universal fine-feature-preservation claim: **not supported**;
+- recommended scope: noisy/degraded inspection restoration with a future
+  independently calibrated clean-input bypass.
+
+The full audit panel and its exact selected-image metadata are retained in the
+persistent experiment artifacts. Carinthia is not reused to calibrate the
+bypass or retrain the model, preserving the cold-test status of this evidence.

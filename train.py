@@ -32,6 +32,7 @@ from semirestore.checkpoints import (  # noqa: E402
     CHECKPOINT_FORMAT_VERSION,
     atomic_torch_save,
     load_checkpoint_payload,
+    load_model_checkpoint,
 )
 from semirestore.data import InputValidationError  # noqa: E402
 from semirestore.degradations import load_degradation_profile  # noqa: E402
@@ -241,6 +242,13 @@ def _autocast(device: torch.device, enabled: bool):
     return nullcontext()
 
 
+def _precision_autocast(device: torch.device, precision: str):
+    dtype = {"fp16": torch.float16, "bf16": torch.bfloat16}.get(precision)
+    if dtype is not None:
+        return torch.autocast(device_type="cuda", dtype=dtype)
+    return nullcontext()
+
+
 def _validation_psnr(
     model: torch.nn.Module,
     loader: DataLoader,
@@ -282,6 +290,8 @@ def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
         "ema_val_psnr_db",
         "selected_val_psnr_db",
         "selected_weights",
+        "supervised_loss",
+        "distillation_loss",
         "lr",
     )
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
@@ -315,6 +325,7 @@ def _checkpoint_payload(
     manifest_sha256: str,
     environment: dict[str, object],
     overfit_samples: int,
+    distillation: dict[str, object],
 ) -> dict[str, object]:
     data_config = config["data"]
     training_config = config["training"]
@@ -344,7 +355,10 @@ def _checkpoint_payload(
         "loss": {
             "name": "charbonnier",
             "epsilon": training_config["charbonnier_epsilon"],
+            "supervised_weight": distillation.get("supervised_weight", 1.0),
+            "teacher_weight": distillation.get("teacher_weight", 0.0),
         },
+        "distillation": distillation,
         "data": {
             "manifest_sha256": manifest_sha256,
             "train_split": data_config["train_split"],
@@ -375,6 +389,7 @@ def _validate_resume_payload(
     d4_augmentation: bool,
     synthetic_probability: float,
     degradation_profile_sha256: str | None,
+    distillation: dict[str, object],
 ) -> None:
     if payload.get("checkpoint_role") != "training_resume":
         raise InputValidationError("--resume requires a training_resume last.pt checkpoint")
@@ -393,6 +408,8 @@ def _validate_resume_payload(
         raise InputValidationError("Resume checkpoint synthetic probability does not match")
     if checkpoint_data.get("degradation_profile_sha256") != degradation_profile_sha256:
         raise InputValidationError("Resume checkpoint degradation profile does not match")
+    if payload.get("distillation", {"enabled": False}) != distillation:
+        raise InputValidationError("Resume checkpoint distillation policy does not match")
     if payload.get("planned_max_steps") != max_steps:
         raise InputValidationError(
             "Resume checkpoint planned_max_steps does not match the resolved config"
@@ -448,6 +465,30 @@ def main(argv: list[str] | None = None) -> int:
         ema_decay = float(training_config.get("ema_decay", 0.999))
         d4_augmentation = bool(training_config.get("d4_augmentation", False))
         synthetic_probability = float(training_config.get("synthetic_probability", 0.0))
+        configured_distillation = config.get("distillation", {})
+        if not isinstance(configured_distillation, dict):
+            raise InputValidationError("Configuration 'distillation' must be a mapping")
+        distillation_enabled = bool(configured_distillation.get("enabled", False))
+        supervised_weight = float(
+            configured_distillation.get("supervised_weight", 1.0)
+        )
+        teacher_weight = float(configured_distillation.get("teacher_weight", 0.0))
+        teacher_precision = str(configured_distillation.get("teacher_precision", "fp32"))
+        if distillation_enabled:
+            if supervised_weight < 0.0 or teacher_weight <= 0.0:
+                raise InputValidationError(
+                    "Enabled distillation requires supervised_weight >= 0 and teacher_weight > 0"
+                )
+            if not math.isclose(supervised_weight + teacher_weight, 1.0, abs_tol=1e-9):
+                raise InputValidationError("Distillation loss weights must sum to 1.0")
+            if teacher_precision not in {"fp32", "fp16", "bf16"}:
+                raise InputValidationError(
+                    "distillation.teacher_precision must be fp32, fp16, or bf16"
+                )
+        else:
+            supervised_weight = 1.0
+            teacher_weight = 0.0
+            teacher_precision = "fp32"
         if learning_rate <= 0 or weight_decay < 0 or grad_clip <= 0 or warmup_steps < 0:
             raise InputValidationError("Invalid optimizer, clipping, or warmup configuration")
         if not 0.0 <= ema_decay < 1.0:
@@ -472,6 +513,32 @@ def main(argv: list[str] | None = None) -> int:
         construction_config = {
             key: value for key, value in model_config.items() if key != "name"
         }
+        teacher_path: Path | None = None
+        teacher_sha256: str | None = None
+        if distillation_enabled:
+            configured_teacher = configured_distillation.get("teacher_checkpoint")
+            if not isinstance(configured_teacher, str) or not configured_teacher:
+                raise InputValidationError(
+                    "Enabled distillation requires distillation.teacher_checkpoint"
+                )
+            teacher_path = _resolve_project_path(configured_teacher)
+            teacher_sha256 = hashlib.sha256(teacher_path.read_bytes()).hexdigest()
+            if device.type != "cuda" and teacher_precision != "fp32":
+                raise InputValidationError(
+                    "Reduced-precision teacher inference requires CUDA"
+                )
+        distillation_record: dict[str, object]
+        if distillation_enabled:
+            distillation_record = {
+                "enabled": True,
+                "teacher_checkpoint": str(teacher_path),
+                "teacher_sha256": teacher_sha256,
+                "teacher_precision": teacher_precision,
+                "supervised_weight": supervised_weight,
+                "teacher_weight": teacher_weight,
+            }
+        else:
+            distillation_record = {"enabled": False}
         degradation_profile: dict[str, object] | None = None
         degradation_profile_path: Path | None = None
         if synthetic_probability:
@@ -502,6 +569,7 @@ def main(argv: list[str] | None = None) -> int:
                 degradation_profile_sha256=training_config.get(
                     "degradation_profile_sha256"
                 ),
+                distillation=distillation_record,
             )
             generator_state = resume_payload["dataloader_generator_state"]
             if not isinstance(generator_state, torch.Tensor):
@@ -549,6 +617,14 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         model = create_model(str(model_name), construction_config).to(device)
+        teacher_model: torch.nn.Module | None = None
+        teacher_payload: dict[str, object] | None = None
+        if teacher_path is not None:
+            teacher_model, teacher_payload = load_model_checkpoint(
+                teacher_path, map_location="cpu"
+            )
+            teacher_model = teacher_model.to(device).eval()
+            teacher_model.requires_grad_(False)
         ema_model = _create_ema_model(model) if ema_enabled else None
         loss_function = CharbonnierLoss(epsilon).to(device)
         optimizer = torch.optim.AdamW(
@@ -606,6 +682,7 @@ def main(argv: list[str] | None = None) -> int:
                 "ema_decay": ema_decay,
                 "d4_augmentation": d4_augmentation,
                 "synthetic_probability": synthetic_probability,
+                "distillation": distillation_record,
                 "degradation_profile": (
                     None
                     if degradation_profile_path is None
@@ -634,7 +711,8 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"Training {model_name} ({parameter_count:,} parameters) on {device}; "
             f"train={len(train_pairs)}, val={len(val_pairs)}, AMP={amp}, "
-            f"EMA={ema_enabled}, deterministic={deterministic}."
+            f"EMA={ema_enabled}, distillation={distillation_enabled}, "
+            f"deterministic={deterministic}."
         )
         print(f"Initial raw validation PSNR: {initial_raw_val_psnr:.4f} dB")
         if resume_path is not None:
@@ -662,9 +740,33 @@ def main(argv: list[str] | None = None) -> int:
             target = target.to(device, non_blocking=True)
             model.train()
             optimizer.zero_grad(set_to_none=True)
+            teacher_prediction: torch.Tensor | None = None
+            if teacher_model is not None:
+                with torch.inference_mode(), _precision_autocast(
+                    device, teacher_precision
+                ):
+                    teacher_prediction = teacher_model(degraded)
+                if (
+                    teacher_prediction.shape != target.shape
+                    or not torch.isfinite(teacher_prediction).all()
+                ):
+                    raise RuntimeError(
+                        f"Teacher produced an invalid prediction at step {step + 1}"
+                    )
             with _autocast(device, amp):
                 prediction = model(degraded)
-                loss = loss_function(prediction, target)
+                supervised_loss = loss_function(prediction, target)
+                if teacher_prediction is None:
+                    distillation_loss = None
+                    loss = supervised_loss
+                else:
+                    distillation_loss = loss_function(
+                        prediction, teacher_prediction.detach()
+                    )
+                    loss = (
+                        supervised_weight * supervised_loss
+                        + teacher_weight * distillation_loss
+                    )
             if not torch.isfinite(loss):
                 raise RuntimeError(f"Non-finite training loss at step {step + 1}")
             scaler.scale(loss).backward()
@@ -678,6 +780,12 @@ def main(argv: list[str] | None = None) -> int:
 
             step += 1
             final_train_loss = float(loss.detach().item())
+            final_supervised_loss = float(supervised_loss.detach().item())
+            final_distillation_loss = (
+                None
+                if distillation_loss is None
+                else float(distillation_loss.detach().item())
+            )
             if initial_train_loss is None:
                 initial_train_loss = final_train_loss
             best_train_loss = min(best_train_loss, final_train_loss)
@@ -725,6 +833,7 @@ def main(argv: list[str] | None = None) -> int:
                     manifest_sha256=manifest_digest,
                     environment=environment,
                     overfit_samples=args.overfit_samples,
+                    distillation=distillation_record,
                 )
                 atomic_torch_save(payload, run_dir / "last.pt")
                 best_payload = {
@@ -757,6 +866,10 @@ def main(argv: list[str] | None = None) -> int:
                         "" if selected_val_psnr is None else selected_val_psnr
                     ),
                     "selected_weights": selected_weights,
+                    "supervised_loss": final_supervised_loss,
+                    "distillation_loss": (
+                        "" if final_distillation_loss is None else final_distillation_loss
+                    ),
                     "lr": optimizer.param_groups[0]["lr"],
                 }
             )
@@ -801,6 +914,9 @@ def main(argv: list[str] | None = None) -> int:
             "final_train_loss": final_train_loss,
             "best_train_loss": best_train_loss,
             "loss_reduction_ratio": best_train_loss / initial_train_loss,
+            "final_supervised_loss": final_supervised_loss,
+            "final_distillation_loss": final_distillation_loss,
+            "distillation": distillation_record,
             "initial_raw_val_psnr_db": initial_raw_val_psnr,
             "initial_ema_val_psnr_db": initial_ema_val_psnr,
             "initial_val_psnr_db": initial_raw_val_psnr,

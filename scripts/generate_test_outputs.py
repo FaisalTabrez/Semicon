@@ -27,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--weights", type=Path, default=PROJECT_ROOT / "weights" / "model.pt"
     )
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
-    parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--expected-count", type=int, default=400)
     parser.add_argument("--overwrite", action="store_true")
     return parser

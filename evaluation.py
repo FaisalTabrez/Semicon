@@ -45,7 +45,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="Inference precision; BF16 remains opt-in pending parity tests",
     )
-    parser.add_argument("--batch-size", type=int, default=1, help="Images per inference batch")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=16,
+        help="Images per inference batch (default: 16; mixed shapes are grouped safely)",
+    )
     parser.add_argument(
         "--overwrite",
         action="store_true",

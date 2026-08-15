@@ -1,9 +1,9 @@
 # Packages explicitly controlled in the final Google Colab evidence runtime.
-# Colab supplied the CUDA build of PyTorch; do not replace it blindly with a
-# CPU wheel. The measured runtime was Python 3.12.13, torch 2.11.0+cu128,
-# CUDA 12.8, cuDNN 91900, and a Tesla T4. The machine-readable record is
-# reports/benchmark_fp32_batch1.json.
+# Colab supplies the CUDA build of PyTorch; do not replace it with the PyPI
+# requirement used by CPU/CI. Final deployment evidence used Python 3.12.13,
+# torch 2.11.0+cu128, CUDA 12.8, and an NVIDIA A100-SXM4-40GB.
 numpy==2.2.6
 lpips==0.1.4
+Pillow==11.1.0
 PyYAML==6.0.2
 scikit-image==0.25.2

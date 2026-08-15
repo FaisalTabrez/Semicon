@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--weights", type=Path, required=True)
     parser.add_argument("--model", choices=("edsr_lite", "naf_sr"), required=True)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
-    parser.add_argument("--precision", choices=("fp32", "bf16"), default="fp32")
+    parser.add_argument("--precision", choices=("fp32", "bf16", "fp16"), default="fp32")
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--height", type=int, default=128)
     parser.add_argument("--width", type=int, default=128)
@@ -42,8 +42,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _context(device: torch.device, precision: str):
-    if precision == "bf16":
-        return torch.autocast(device_type=device.type, dtype=torch.bfloat16)
+    autocast_dtype = {"bf16": torch.bfloat16, "fp16": torch.float16}.get(precision)
+    if autocast_dtype is not None:
+        return torch.autocast(device_type=device.type, dtype=autocast_dtype)
     return nullcontext()
 
 

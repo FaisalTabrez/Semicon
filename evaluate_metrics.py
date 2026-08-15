@@ -67,9 +67,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument(
         "--precision",
-        choices=("fp32", "bf16"),
+        choices=("fp32", "bf16", "fp16"),
         default="fp32",
         help="Inference precision for a measured parity experiment; default is FP32",
+    )
+    parser.add_argument(
+        "--memory-format",
+        choices=("contiguous", "channels_last"),
+        default="contiguous",
+        help="Model/input CUDA memory format; default preserves the packaged path",
+    )
+    parser.add_argument(
+        "--compile-mode",
+        choices=("none", "default", "reduce-overhead", "max-autotune"),
+        default="none",
+        help="Optional torch.compile mode for fixed-runtime parity evaluation",
     )
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument(
@@ -233,6 +245,8 @@ def _summary_payload(
     bootstrap_seed: int,
     model_name: str,
     checkpoint_sha256: str | None,
+    memory_format: str,
+    compile_mode: str,
 ) -> dict[str, object]:
     split_groups: dict[str, list[dict[str, str]]] = {}
     cluster_groups: dict[str, list[dict[str, str]]] = {}
@@ -254,6 +268,12 @@ def _summary_payload(
         "checkpoint_sha256": checkpoint_sha256,
         "device": str(device),
         "precision": precision,
+        "execution": {
+            "memory_format": memory_format,
+            "compile_mode": compile_mode,
+            "steady_state_timing": False,
+            "note": "Elapsed time includes compilation and metric computation.",
+        },
         "pair_count": len(rows),
         "split_counts": dict(sorted(Counter(row["split"] for row in rows).items())),
         "manifest_sha256": manifest_sha256,
@@ -352,6 +372,10 @@ def main(argv: list[str] | None = None) -> int:
 
         device = resolve_device(args.device)
         precision = resolve_precision(args.precision, device)
+        if args.compile_mode != "none" and device.type != "cuda":
+            raise InputValidationError("--compile-mode requires CUDA")
+        if args.memory_format == "channels_last" and device.type != "cuda":
+            raise InputValidationError("--memory-format channels_last requires CUDA")
         checkpoint_sha256 = None
         if args.model == "bicubic":
             if args.weights is not None:
@@ -369,6 +393,15 @@ def main(argv: list[str] | None = None) -> int:
                 args.weights.expanduser().resolve().read_bytes()
             ).hexdigest()
         model = model.to(device).eval()
+        if args.memory_format == "channels_last":
+            model = model.to(memory_format=torch.channels_last)
+        if args.compile_mode != "none":
+            model = torch.compile(
+                model,
+                mode=args.compile_mode,
+                fullgraph=False,
+                dynamic=False,
+            )
         lpips_model = None if args.no_lpips else create_lpips_model(device)
         rows: list[dict[str, str]] = []
         started = time.perf_counter()
@@ -384,9 +417,15 @@ def main(argv: list[str] | None = None) -> int:
                         "Mixed shapes occurred inside a metric batch; reduce --batch-size to 1"
                     )
                 input_tensor = torch.from_numpy(np.stack(input_arrays))[:, None].to(device)
+                if args.memory_format == "channels_last":
+                    input_tensor = input_tensor.contiguous(memory_format=torch.channels_last)
+                autocast_dtype = {
+                    "bf16": torch.bfloat16,
+                    "fp16": torch.float16,
+                }.get(precision)
                 autocast_context = (
-                    torch.autocast(device_type="cuda", dtype=torch.bfloat16)
-                    if precision == "bf16"
+                    torch.autocast(device_type="cuda", dtype=autocast_dtype)
+                    if autocast_dtype is not None
                     else nullcontext()
                 )
                 with autocast_context:
@@ -465,6 +504,8 @@ def main(argv: list[str] | None = None) -> int:
             bootstrap_seed=args.bootstrap_seed,
             model_name=args.model,
             checkpoint_sha256=checkpoint_sha256,
+            memory_format=args.memory_format,
+            compile_mode=args.compile_mode,
         )
         _atomic_text(csv_path, csv_buffer.getvalue())
         _atomic_text(

@@ -8,7 +8,7 @@ import torch
 from torch import nn
 
 from semirestore.data import InputValidationError
-from semirestore.inference import restore_directory
+from semirestore.inference import resolve_precision, restore_directory
 from semirestore.models import BicubicRestorer
 
 
@@ -85,3 +85,8 @@ def test_output_directory_cannot_be_nested_under_input(tmp_path: Path) -> None:
             model_name="bicubic",
             device="cpu",
         )
+
+
+def test_fp16_precision_requires_cuda() -> None:
+    with pytest.raises(InputValidationError, match="FP16 inference is only enabled on CUDA"):
+        resolve_precision("fp16", torch.device("cpu"))

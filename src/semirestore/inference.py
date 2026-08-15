@@ -49,14 +49,17 @@ def resolve_device(requested: str) -> torch.device:
 def resolve_precision(requested: str, device: torch.device) -> str:
     if requested == "auto":
         return "fp32"
-    if requested == "bf16" and device.type != "cuda":
-        raise InputValidationError("BF16 inference is only enabled on CUDA after parity testing")
+    if requested in {"bf16", "fp16"} and device.type != "cuda":
+        raise InputValidationError(
+            f"{requested.upper()} inference is only enabled on CUDA after parity testing"
+        )
     return requested
 
 
 def _autocast_context(device: torch.device, precision: str):
-    if precision == "bf16":
-        return torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+    autocast_dtype = {"bf16": torch.bfloat16, "fp16": torch.float16}.get(precision)
+    if autocast_dtype is not None:
+        return torch.autocast(device_type="cuda", dtype=autocast_dtype)
     return nullcontext()
 
 

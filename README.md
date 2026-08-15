@@ -220,8 +220,8 @@ See [`reports/external_carinthia_evidence.md`](reports/external_carinthia_eviden
 
 ## Requirements and tests
 
-- `requirements.txt`: reserved for the organizer-mandated complete A100
-  training-environment `pip freeze` provenance.
+- `requirements.txt`: organizer-mandated complete A100 training-environment
+  `pip freeze` provenance (703 entries, including PyTorch 2.11.0+cu128).
 - `requirements-runtime.txt`: minimal pinned standalone CPU/CI installation.
 - `requirements-colab.txt`: pinned non-PyTorch Colab packages; preserves the
   CUDA wheel supplied by Colab.

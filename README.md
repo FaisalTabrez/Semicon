@@ -22,7 +22,7 @@ cd Semicon
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-runtime.txt
 ```
 
 Run the required standalone evaluation script with exactly the two mandatory
@@ -57,7 +57,8 @@ safely within each requested chunk.
 | Training script or notebook | `train.py` and optional Colab notebook |
 | Trained weights | `weights/model.pt` plus `weights/model.sha256` |
 | Restored public-test arrays | `restored_test_outputs/` |
-| Installation dependencies | `requirements.txt` and `requirements-colab.txt` |
+| Complete training freeze (final A100 capture) | `requirements.txt` |
+| Portable evaluator install | `requirements-runtime.txt` |
 | Clone-and-run instructions | Judge quick start and input/output contract below |
 
 The notebook is supplementary. The organizer's evaluator can invoke
@@ -219,7 +220,9 @@ See [`reports/external_carinthia_evidence.md`](reports/external_carinthia_eviden
 
 ## Requirements and tests
 
-- `requirements.txt`: pinned standalone CPU/CI installation.
+- `requirements.txt`: reserved for the organizer-mandated complete A100
+  training-environment `pip freeze` provenance.
+- `requirements-runtime.txt`: minimal pinned standalone CPU/CI installation.
 - `requirements-colab.txt`: pinned non-PyTorch Colab packages; preserves the
   CUDA wheel supplied by Colab.
 - `requirements-dev.txt`: test dependencies.

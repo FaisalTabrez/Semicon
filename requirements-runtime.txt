@@ -1,0 +1,10 @@
+# Minimal portable inference and evaluation environment.
+# The organizer-mandated full training-environment freeze belongs in
+# requirements.txt; use this smaller file for a clean evaluator installation.
+numpy==2.2.6
+Pillow==11.1.0
+lpips==0.1.4
+PyYAML==6.0.2
+scikit-image==0.25.2
+torch==2.6.0
+torchvision==0.21.0

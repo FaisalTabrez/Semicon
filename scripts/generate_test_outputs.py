@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("input_dir", type=Path, help="Organizer public-test NoisyLR directory")
     parser.add_argument("output_dir", type=Path, help="Destination for restored arrays")
     parser.add_argument(
-        "--weights", type=Path, default=PROJECT_ROOT / "weights" / "model.pt"
+        "--weights", type=Path, default=PROJECT_ROOT / "models" / "model.pt"
     )
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--batch-size", type=int, default=16)

@@ -23,8 +23,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=PROJECT_ROOT / "restored_test_outputs")
-    parser.add_argument("--weights", type=Path, default=PROJECT_ROOT / "weights" / "model.pt")
-    parser.add_argument("--sha256", type=Path, default=PROJECT_ROOT / "weights" / "model.sha256")
+    parser.add_argument("--weights", type=Path, default=PROJECT_ROOT / "models" / "model.pt")
+    parser.add_argument("--sha256", type=Path, default=PROJECT_ROOT / "models" / "model.sha256")
     parser.add_argument("--expected-count", type=int, default=400)
     return parser
 
@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         expected_digest = sha_path.read_text(encoding="utf-8").strip().split()[0]
         actual_digest = _digest(args.weights.expanduser().resolve())
         if expected_digest != actual_digest:
-            raise InputValidationError("Checkpoint SHA-256 does not match weights/model.sha256")
+            raise InputValidationError("Checkpoint SHA-256 does not match models/model.sha256")
         input_map = {item.relative_path: item for item in inputs}
         for output in outputs:
             array = np.load(output.source, allow_pickle=False)

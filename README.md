@@ -9,7 +9,7 @@ The packaged checkpoint is frozen and self-describing:
 
 - model: conditioned NAF-SR, real paired training plus D4 augmentation;
 - parameters: 9,111,684;
-- checkpoint: `weights/model.pt` (34.87 MiB);
+- checkpoint: `models/model.pt` (34.87 MiB);
 - SHA-256: `273abd9d6dcfa9bdee71ac15016994962304b6c9d902898b4f4d503bed158c28`;
 - default inference: eager PyTorch FP32, batch 16; and
 - output: float32 `.npy`, 2× spatial dimensions, clipped to `[0,1]`.
@@ -22,24 +22,24 @@ cd Semicon
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements-runtime.txt
+python -m pip install -r requirements.txt
 ```
 
 Run the required standalone evaluation script with exactly the two mandatory
 paths:
 
 ```bash
-python evaluation.py /path/to/NoisyLR /path/to/restored_outputs
+python run.py /path/to/NoisyLR /path/to/restored_outputs
 ```
 
-`evaluation.py` resolves repository assets independently of the current working
-directory, automatically loads `weights/model.pt`, uses CUDA when available,
+`run.py` resolves repository assets independently of the current working
+directory, automatically loads `models/model.pt`, uses CUDA when available,
 and processes the complete directory without source edits. Useful options:
 
 ```bash
-python evaluation.py INPUT_DIR OUTPUT_DIR --device cuda --batch-size 16
-python evaluation.py INPUT_DIR OUTPUT_DIR --device cpu
-python evaluation.py INPUT_DIR OUTPUT_DIR --overwrite \
+python run.py INPUT_DIR OUTPUT_DIR --device cuda --batch-size 16
+python run.py INPUT_DIR OUTPUT_DIR --device cpu
+python run.py INPUT_DIR OUTPUT_DIR --overwrite \
   --report-json /path/to/inference_report.json
 ```
 
@@ -53,16 +53,16 @@ safely within each requested chunk.
 | Organizer requirement | Repository location |
 |---|---|
 | Public source repository | This GitHub repository |
-| Standalone evaluation `.py` | `evaluation.py` |
+| Required standalone entry point | `run.py INPUT_DIR OUTPUT_DIR` |
 | Training script or notebook | `train.py` and optional Colab notebook |
-| Trained weights | `weights/model.pt` plus `weights/model.sha256` |
+| Trained weights | `models/model.pt` plus `models/model.sha256` |
 | Restored public-test arrays | `restored_test_outputs/` |
-| Complete training freeze (final A100 capture) | `requirements.txt` |
-| Portable evaluator install | `requirements-runtime.txt` |
+| Minimal pinned evaluator install | `requirements.txt` |
+| Complete training freeze (final A100 capture) | `requirements-a100-freeze.txt` |
 | Clone-and-run instructions | Judge quick start and input/output contract below |
 
 The notebook is supplementary. The organizer's evaluator can invoke
-`evaluation.py INPUT_DIR OUTPUT_DIR` as-is, without opening Jupyter or changing
+`run.py INPUT_DIR OUTPUT_DIR` as-is, without opening Jupyter or changing
 hard-coded paths.
 
 ## Input/output contract
@@ -87,8 +87,8 @@ organizer's extracted inputs, verify paths, shapes, dtype, range, and checkpoint
 python scripts/verify_submission.py \
   --input-dir /path/to/test/NoisyLR \
   --output-dir restored_test_outputs \
-  --weights weights/model.pt \
-  --sha256 weights/model.sha256 \
+  --weights models/model.pt \
+  --sha256 models/model.sha256 \
   --expected-count 400
 ```
 
@@ -97,14 +97,14 @@ Regenerate them through the submission path:
 ```bash
 python scripts/generate_test_outputs.py \
   /path/to/test/NoisyLR restored_test_outputs \
-  --weights weights/model.pt --device cuda --batch-size 16 --overwrite
+  --weights models/model.pt --device cuda --batch-size 16 --overwrite
 ```
 
 ## One-notebook Colab walkthrough
 
 Open [`notebooks/SemiRestore_KLA_PS01_Colab.ipynb`](notebooks/SemiRestore_KLA_PS01_Colab.ipynb)
 in Colab. The quick path clones the repository, preserves Colab's CUDA PyTorch,
-downloads the public test archive, calls the standalone `evaluation.py`, verifies
+downloads the public test archive, calls the standalone `run.py`, verifies
 all 400 outputs, and displays a sample.
 
 The optional training section rebuilds the locked split, runs a 200-step
@@ -220,9 +220,12 @@ See [`reports/external_carinthia_evidence.md`](reports/external_carinthia_eviden
 
 ## Requirements and tests
 
-- `requirements.txt`: organizer-mandated complete A100 training-environment
+- `requirements.txt`: minimal pinned dependencies used by the required
+  `run.py INPUT_DIR OUTPUT_DIR` evaluator.
+- `requirements-a100-freeze.txt`: complete final A100 training-environment
   `pip freeze` provenance (703 entries, including PyTorch 2.11.0+cu128).
-- `requirements-runtime.txt`: minimal pinned standalone CPU/CI installation.
+- `requirements-runtime.txt`: extended pinned evaluation environment used by
+  metric and evidence tooling.
 - `requirements-colab.txt`: pinned non-PyTorch Colab packages; preserves the
   CUDA wheel supplied by Colab.
 - `requirements-dev.txt`: test dependencies.
@@ -239,10 +242,12 @@ external evaluation, and submission verification.
 ## Repository map
 
 ```text
-evaluation.py                 Required standalone inference entry point
+run.py                        Required KLA inference entry point
+evaluation.py                 Extended inference CLI used by run.py
 train.py                      Reproducible training and resume engine
 evaluate_metrics.py           PSNR/SSIM/LPIPS evaluator
-weights/                      Frozen model, checksum, model card
+models/                       Submission checkpoint and checksum
+weights/                      Original frozen checkpoint and model card
 restored_test_outputs/        400 packaged public-test restorations
 configs/                      Final, baseline, ablation, student configs
 src/semirestore/              Models, data, metrics, inference
@@ -259,5 +264,5 @@ tests/                        Automated fresh-environment checks
 - Carinthia has no native aligned degraded/clean pairs.
 - Restoration can suppress genuine texture on cleaner-than-training inputs.
 - Outputs support inspection review, not a manufacturing disposition.
-- Never replace `weights/model.pt` without regenerating its checksum, all 400
+- Never replace `models/model.pt` without regenerating its checksum, all 400
   outputs, quality evidence, and clean-clone verification.

@@ -9,7 +9,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 SRC_ROOT = PROJECT_ROOT / "src"
-DEFAULT_WEIGHTS = PROJECT_ROOT / "weights" / "model.pt"
+DEFAULT_WEIGHTS = PROJECT_ROOT / "models" / "model.pt"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
@@ -34,7 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--weights",
         type=Path,
-        help="Self-describing .pt checkpoint; defaults to weights/model.pt for learned models",
+        help="Self-describing .pt checkpoint; defaults to models/model.pt for learned models",
     )
     parser.add_argument(
         "--device", choices=("auto", "cpu", "cuda"), default="auto", help="Inference device"
